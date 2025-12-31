@@ -9,6 +9,8 @@
 #include <cstring>
 
 #include <arpa/inet.h>
+#include <net/if.h>
+#include <netdb.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
 
@@ -20,32 +22,64 @@ std::string zportal::SockAddress::str(bool extended) const {
 
     switch (family()) {
     case AF_INET: {
-        constexpr std::size_t max_ip4_representation_size = INET_ADDRSTRLEN /*IP4 + NUL*/ + 6 /* :XXXXX */;
-        std::array<char, max_ip4_representation_size> buffer{};
+        std::string buffer;
+        std::array<char, INET_ADDRSTRLEN> address{};
         const auto* ip4 = reinterpret_cast<const sockaddr_in*>(&ss_);
 
-        if (::inet_ntop(AF_INET, &ip4->sin_addr, buffer.data(), sizeof(buffer)) == nullptr)
+        if (::inet_ntop(AF_INET, &ip4->sin_addr, address.data(), address.size()) == nullptr)
             throw std::runtime_error(std::error_code{errno, std::system_category()}.message());
 
-        // Return only IP4 representation
+        buffer.append(address.data());
+
         if (!extended)
-            return buffer.data();
+            return buffer;
 
-        // Extended info for IP4 contains `:port`
-        const auto addr_length = std::strlen(buffer.data());
-        buffer[addr_length] = ':';
-
-        char* first = buffer.data() + addr_length + 1;
-        char* last = buffer.data() + buffer.size() - 1;
-        const auto port = ::ntohs(ip4->sin_port);
-        auto [ptr, ec] = std::to_chars(first, last, port);
+        buffer.append(":");
+        std::array<char, 6> port_str{};
+        auto [ptr, ec] = std::to_chars(port_str.begin(), port_str.end(), ::ntohs(ip4->sin_port));
         if (ec != std::errc{})
             throw std::runtime_error(std::make_error_code(ec).message());
+        buffer.append(port_str.data());
 
-        // Just in case
-        *ptr = '\0';
+        return buffer;
+    } break;
 
-        return buffer.data();
+    case AF_INET6: {
+        std::string buffer;
+        std::array<char, INET6_ADDRSTRLEN> address{};
+        const auto* ip6 = reinterpret_cast<const sockaddr_in6*>(&ss_);
+
+        if (extended)
+            buffer.append("[");
+
+        if (::inet_ntop(AF_INET6, &ip6->sin6_addr, address.data(), address.size()) == nullptr)
+            throw std::runtime_error(std::error_code{errno, std::system_category()}.message());
+
+        buffer.append(address.data());
+
+        if (IN6_IS_ADDR_LINKLOCAL(&ip6->sin6_addr) && ip6->sin6_scope_id != 0) {
+            buffer.append("%");
+            std::array<char, IF_NAMESIZE> ifname{};
+            if (::if_indextoname(ip6->sin6_scope_id, ifname.data()) == nullptr) {
+                auto [ptr, ec] = std::to_chars(ifname.begin(), ifname.end(), ip6->sin6_scope_id);
+                if (ec != std::errc{})
+                    throw std::runtime_error(std::make_error_code(ec).message());
+            }
+            buffer.append(ifname.data());
+        }
+
+        if (!extended)
+            return buffer;
+
+        buffer.append("]:");
+        std::array<char, 6> port_str{};
+        auto [ptr, ec] = std::to_chars(port_str.begin(), port_str.end(), ::ntohs(ip6->sin6_port));
+        if (ec != std::errc{})
+            throw std::runtime_error(std::make_error_code(ec).message());
+        buffer.append(port_str.data());
+
+        return buffer;
+
     } break;
     }
 
@@ -56,7 +90,10 @@ sa_family_t zportal::SockAddress::family() const noexcept {
     return ss_.ss_family;
 }
 
-const sockaddr* zportal::SockAddress::get() const noexcept {
+const sockaddr* zportal::SockAddress::get() const {
+    if (!is_valid())
+        throw std::logic_error("invalid address");
+
     return reinterpret_cast<const sockaddr*>(&ss_);
 }
 
@@ -70,7 +107,12 @@ zportal::SockAddress::operator bool() const noexcept {
 
 bool zportal::SockAddress::is_valid() const noexcept {
     // Currently supported: IP4
-    return family() == AF_INET;
+    if (family() == AF_INET)
+        return length() == sizeof(sockaddr_in);
+    else if (family() == AF_INET6)
+        return length() == sizeof(sockaddr_in6);
+
+    return false;
 }
 
 bool zportal::SockAddress::is_connectable() const noexcept {
@@ -84,11 +126,13 @@ bool zportal::SockAddress::is_connectable() const noexcept {
         return true;
     } else if (family() == AF_INET6) {
         const auto* ip6 = reinterpret_cast<const sockaddr_in6*>(&ss_);
-        if (IN6_IS_ADDR_UNSPECIFIED(&ip6->sin6_addr) || ip6->sin6_port == 0)
+        if (IN6_IS_ADDR_UNSPECIFIED(&ip6->sin6_addr) || IN6_IS_ADDR_MULTICAST(&ip6->sin6_addr) || ip6->sin6_port == 0 ||
+            (IN6_IS_ADDR_LINKLOCAL(&ip6->sin6_addr) && ip6->sin6_scope_id == 0))
             return false;
         return true;
-    } else if (family() == AF_UNIX)
+    } /*else if (family() == AF_UNIX)
         return true;
+    */
 
     return false;
 }
@@ -113,6 +157,32 @@ zportal::SockAddress zportal::SockAddress::ip4_numeric(const std::string& numeri
         throw std::runtime_error("invalid IP4 presentation");
 
     buffer.len_ = sizeof(sockaddr_in);
+
+    return buffer;
+}
+
+zportal::SockAddress zportal::SockAddress::ip6_numeric(const std::string& numeric, std::uint16_t port) {
+    SockAddress buffer;
+
+    addrinfo request{}, *result = nullptr;
+    request.ai_family = AF_INET6;
+    request.ai_flags = AI_NUMERICHOST;
+
+    if (const int gai_result = ::getaddrinfo(numeric.c_str(), nullptr, &request, &result); gai_result != 0)
+        throw std::runtime_error("getaddrinfo() error: " + std::string(::gai_strerror(gai_result)));
+
+    if (result == nullptr || result->ai_family != AF_INET6 || result->ai_addr == nullptr ||
+        result->ai_addrlen != sizeof(sockaddr_in6)) {
+        ::freeaddrinfo(result);
+        throw std::runtime_error("unexpected behaviour from getaddrinfo()");
+    }
+
+    std::memcpy(&buffer.ss_, result->ai_addr, result->ai_addrlen);
+
+    reinterpret_cast<sockaddr_in6*>(&buffer.ss_)->sin6_port = ::htons(port);
+    buffer.len_ = result->ai_addrlen;
+
+    ::freeaddrinfo(result);
 
     return buffer;
 }

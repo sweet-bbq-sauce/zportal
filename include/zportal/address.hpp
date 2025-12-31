@@ -14,7 +14,7 @@ class SockAddress {
 
     std::string str(bool extended = true) const;
     sa_family_t family() const noexcept;
-    const sockaddr* get() const noexcept;
+    const sockaddr* get() const;
     socklen_t length() const noexcept;
 
     explicit operator bool() const noexcept;
@@ -24,8 +24,8 @@ class SockAddress {
 
     static SockAddress ip4_numeric(const std::string& numeric, std::uint16_t port);
     static SockAddress ip6_numeric(const std::string& numeric, std::uint16_t port);
-    static SockAddress unix_path(const std::string& path);
-    static SockAddress unix_abstract(const std::string& name);
+    // static SockAddress unix_path(const std::string& path);
+    // static SockAddress unix_abstract(const std::string& name);
 
   private:
     sockaddr_storage ss_{};
