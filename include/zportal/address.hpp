@@ -1,7 +1,9 @@
 #pragma once
 
+#include <span>
 #include <string>
 
+#include <cstddef>
 #include <cstdint>
 
 #include <sys/socket.h>
@@ -24,8 +26,9 @@ class SockAddress {
 
     static SockAddress ip4_numeric(const std::string& numeric, std::uint16_t port);
     static SockAddress ip6_numeric(const std::string& numeric, std::uint16_t port);
-    // static SockAddress unix_path(const std::string& path);
-    // static SockAddress unix_abstract(const std::string& name);
+    static SockAddress unix_path(const std::string& path);
+    static SockAddress unix_abstract(std::span<const std::byte> name);
+    static SockAddress unix_abstract(const std::string& name);
 
   private:
     sockaddr_storage ss_{};

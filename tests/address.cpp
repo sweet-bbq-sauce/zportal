@@ -1,3 +1,5 @@
+#include <array>
+#include <span>
 #include <stdexcept>
 #include <string>
 
@@ -174,4 +176,103 @@ TEST(SockAddress, IP6LinkLocal) {
 
     const auto str2 = address.str(true);
     EXPECT_EQ(str2, ip_with_port);
+}
+
+TEST(SockAddress, ValidUnix) {
+    const std::string unix = "some.socket";
+    const std::string unixa = "some";
+    const std::array<std::byte, 2> unixa_binary = {std::byte{0x00}, std::byte{0x02}};
+
+    SockAddress address1;
+    EXPECT_NO_THROW(address1 = SockAddress::unix_path(unix));
+    EXPECT_EQ(address1.family(), AF_UNIX);
+
+    SockAddress address2;
+    EXPECT_NO_THROW(address2 = SockAddress::unix_abstract(unixa));
+    EXPECT_EQ(address2.family(), AF_UNIX);
+
+    SockAddress address3;
+    EXPECT_NO_THROW(address3 = SockAddress::unix_abstract(unixa_binary));
+    EXPECT_EQ(address3.family(), AF_UNIX);
+}
+
+TEST(SockAddress, UnixStringify) {
+    const std::string unix = "some.socket";
+    const std::string unix_e = "unix:some.socket";
+
+    const std::string unixa = "some";
+    const std::string unixa_e = "unixa:some";
+
+    const std::array<std::byte, 2> unixa_binary_raw = {std::byte{0xAF}, std::byte{0x02}};
+    const std::string unixa_binary = "AF02";
+    const std::string unixa_binary_e = "unixa:AF02";
+
+    SockAddress address1;
+    EXPECT_NO_THROW(address1 = SockAddress::unix_path(unix));
+    EXPECT_EQ(address1.str(false), unix);
+    EXPECT_EQ(address1.str(true), unix_e);
+
+    SockAddress address2;
+    EXPECT_NO_THROW(address2 = SockAddress::unix_abstract(unixa));
+    EXPECT_EQ(address2.str(false), unixa);
+    EXPECT_EQ(address2.str(true), unixa_e);
+
+    SockAddress address3;
+    EXPECT_NO_THROW(address3 = SockAddress::unix_abstract(unixa_binary_raw));
+    EXPECT_EQ(address3.str(false), unixa_binary);
+    EXPECT_EQ(address3.str(true), unixa_binary_e);
+}
+
+TEST(SockAddress, UnixIsValid) {
+    const std::string unix = "some.socket";
+    const std::string unixa = "some";
+    const std::array<std::byte, 2> unixa_binary = {std::byte{0xAF}, std::byte{0x02}};
+
+    SockAddress address1;
+    EXPECT_NO_THROW(address1 = SockAddress::unix_path(unix));
+    EXPECT_TRUE(address1.is_valid());
+
+    SockAddress address2;
+    EXPECT_NO_THROW(address2 = SockAddress::unix_abstract(unixa));
+    EXPECT_TRUE(address2.is_valid());
+
+    SockAddress address3;
+    EXPECT_NO_THROW(address3 = SockAddress::unix_abstract(unixa_binary));
+    EXPECT_TRUE(address3.is_valid());
+}
+
+TEST(SockAddress, UnixIsConnectable) {
+    const std::string unix = "some.socket";
+    const std::string unixa = "some";
+    const std::array<std::byte, 2> unixa_binary = {std::byte{0xAF}, std::byte{0x02}};
+
+    SockAddress address1;
+    EXPECT_NO_THROW(address1 = SockAddress::unix_path(unix));
+    EXPECT_TRUE(address1.is_connectable());
+
+    SockAddress address2;
+    EXPECT_NO_THROW(address2 = SockAddress::unix_abstract(unixa));
+    EXPECT_TRUE(address2.is_connectable());
+
+    SockAddress address3;
+    EXPECT_NO_THROW(address3 = SockAddress::unix_abstract(unixa_binary));
+    EXPECT_TRUE(address3.is_connectable());
+}
+
+TEST(SockAddress, UnixIsBindable) {
+    const std::string unix = "some.socket";
+    const std::string unixa = "some";
+    const std::array<std::byte, 2> unixa_binary = {std::byte{0xAF}, std::byte{0x02}};
+
+    SockAddress address1;
+    EXPECT_NO_THROW(address1 = SockAddress::unix_path(unix));
+    EXPECT_TRUE(address1.is_bindable());
+
+    SockAddress address2;
+    EXPECT_NO_THROW(address2 = SockAddress::unix_abstract(unixa));
+    EXPECT_TRUE(address2.is_bindable());
+
+    SockAddress address3;
+    EXPECT_NO_THROW(address3 = SockAddress::unix_abstract(unixa_binary));
+    EXPECT_TRUE(address3.is_bindable());
 }

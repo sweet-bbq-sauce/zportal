@@ -1,10 +1,13 @@
 #include <array>
 #include <charconv>
+#include <span>
 #include <stdexcept>
 #include <string>
 #include <system_error>
 
+#include <cctype>
 #include <cerrno>
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
 
@@ -13,8 +16,33 @@
 #include <netdb.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
+#include <sys/un.h>
 
 #include <zportal/address.hpp>
+
+const static auto is_binary = [](std::span<const char> data) noexcept {
+    for (const auto c : data) {
+        if (!std::isprint(static_cast<unsigned char>(c)))
+            return true;
+    }
+
+    return false;
+};
+
+const static auto to_hex = [](std::span<const std::byte> data) {
+    static constexpr char up[] = "0123456789ABCDEF";
+
+    std::string out;
+    out.resize(data.size() * 2);
+
+    std::size_t j = 0;
+    for (std::byte b : data) {
+        auto v = static_cast<unsigned>(b);
+        out[j++] = up[(v >> 4) & 0xF];
+        out[j++] = up[v & 0xF];
+    }
+    return out;
+};
 
 std::string zportal::SockAddress::str(bool extended) const {
     if (!is_valid())
@@ -81,6 +109,28 @@ std::string zportal::SockAddress::str(bool extended) const {
         return buffer;
 
     } break;
+
+    case AF_UNIX: {
+        std::string buffer;
+        const auto* unix = reinterpret_cast<const sockaddr_un*>(&ss_);
+
+        const bool abstract = unix->sun_path[0] == '\0';
+
+        const char* ptr = abstract ? unix->sun_path + 1 : unix->sun_path;
+        const std::size_t size = length() - 1 - offsetof(sockaddr_un, sun_path);
+
+        const bool binary = is_binary({ptr, size});
+        if (!abstract && binary)
+            throw std::logic_error("invalid address");
+
+        if (extended)
+            buffer.append(abstract ? "unixa:" : "unix:");
+
+        buffer.append(binary ? to_hex({reinterpret_cast<const std::byte*>(ptr), size}) : std::string(ptr, size));
+
+        return buffer;
+
+    } break;
     }
 
     throw std::runtime_error("unsupported address family: " + std::to_string(family()));
@@ -106,11 +156,25 @@ zportal::SockAddress::operator bool() const noexcept {
 }
 
 bool zportal::SockAddress::is_valid() const noexcept {
-    // Currently supported: IP4
     if (family() == AF_INET)
         return length() == sizeof(sockaddr_in);
     else if (family() == AF_INET6)
         return length() == sizeof(sockaddr_in6);
+    else if (family() == AF_UNIX) {
+        if (length() < offsetof(sockaddr_un, sun_path) + 1)
+            return false;
+        if (length() > sizeof(sockaddr_un))
+            return false;
+
+        auto* unix = reinterpret_cast<const sockaddr_un*>(&ss_);
+        bool abstract = unix->sun_path[0] == '\0';
+
+        if (!abstract) {
+            if (length() < offsetof(sockaddr_un, sun_path) + 2)
+                return false;
+        }
+        return true;
+    }
 
     return false;
 }
@@ -130,9 +194,8 @@ bool zportal::SockAddress::is_connectable() const noexcept {
             (IN6_IS_ADDR_LINKLOCAL(&ip6->sin6_addr) && ip6->sin6_scope_id == 0))
             return false;
         return true;
-    } /*else if (family() == AF_UNIX)
+    } else if (family() == AF_UNIX)
         return true;
-    */
 
     return false;
 }
@@ -185,4 +248,39 @@ zportal::SockAddress zportal::SockAddress::ip6_numeric(const std::string& numeri
     ::freeaddrinfo(result);
 
     return buffer;
+}
+
+zportal::SockAddress zportal::SockAddress::unix_path(const std::string& path) {
+    if (path.size() > sizeof(sockaddr_un::sun_path) - 1)
+        throw std::invalid_argument("unix path size is too long");
+
+    if (is_binary(path))
+        throw std::invalid_argument("unix path contains invalid characters");
+
+    SockAddress buffer;
+    auto* unix = reinterpret_cast<sockaddr_un*>(&buffer.ss_);
+    unix->sun_family = AF_UNIX;
+    buffer.len_ = static_cast<socklen_t>(offsetof(sockaddr_un, sun_path) + path.size() + 1);
+    std::strcpy(unix->sun_path, path.c_str());
+
+    return buffer;
+}
+
+zportal::SockAddress zportal::SockAddress::unix_abstract(std::span<const std::byte> name) {
+    if (name.size() > sizeof(sockaddr_un::sun_path) - 1)
+        throw std::invalid_argument("unix name size is too long");
+
+    SockAddress buffer;
+    auto* unix = reinterpret_cast<sockaddr_un*>(&buffer.ss_);
+    unix->sun_family = AF_UNIX;
+    buffer.len_ = static_cast<socklen_t>(offsetof(sockaddr_un, sun_path) + 1 + name.size());
+    unix->sun_path[0] = '\0';
+    std::memcpy(unix->sun_path + 1, name.data(), name.size());
+
+    return buffer;
+}
+
+zportal::SockAddress zportal::SockAddress::unix_abstract(const std::string& name) {
+    std::span<const std::byte> view{reinterpret_cast<const std::byte*>(name.data()), name.size()};
+    return unix_abstract(view);
 }
