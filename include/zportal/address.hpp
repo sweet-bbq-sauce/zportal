@@ -28,6 +28,7 @@ class SockAddress {
     bool is_ip() const noexcept;
     bool is_unix() const noexcept;
 
+    static SockAddress from_sockaddr(const sockaddr* addr, socklen_t len);
     static SockAddress ip4_numeric(const std::string& numeric, std::uint16_t port);
     static SockAddress ip6_numeric(const std::string& numeric, std::uint16_t port);
     static SockAddress unix_path(const std::string& path);

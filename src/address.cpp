@@ -44,6 +44,10 @@ const static auto to_hex = [](std::span<const std::byte> data) {
     return out;
 };
 
+const static auto is_supported_family = [](sa_family_t family) noexcept {
+    return family == AF_INET || family == AF_INET6 || family == AF_UNIX;
+};
+
 std::string zportal::SockAddress::str(bool extended) const {
     if (!is_valid())
         throw std::logic_error("unspecified address");
@@ -219,6 +223,28 @@ bool zportal::SockAddress::is_unix() const noexcept {
         return false;
 
     return family() == AF_UNIX;
+}
+
+zportal::SockAddress zportal::SockAddress::from_sockaddr(const sockaddr* addr, socklen_t len) {
+    if (addr == nullptr)
+        throw std::invalid_argument("addr is null");
+
+    if (len == 0 || len > sizeof(sockaddr_storage))
+        throw std::invalid_argument("invalid socklen");
+
+    if (!is_supported_family(addr->sa_family))
+        throw std::invalid_argument("unsupported family");
+
+    if (addr->sa_family == AF_INET && len != sizeof(sockaddr_in))
+        throw std::invalid_argument("invalid socklen");
+    else if (addr->sa_family == AF_INET6 && len != sizeof(sockaddr_in6))
+        throw std::invalid_argument("invalid socklen");
+
+    SockAddress buffer;
+    std::memcpy(&buffer.ss_, addr, len);
+    buffer.len_ = len;
+
+    return buffer;
 }
 
 zportal::SockAddress zportal::SockAddress::ip4_numeric(const std::string& numeric, std::uint16_t port) {
