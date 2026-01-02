@@ -276,3 +276,24 @@ TEST(SockAddress, UnixIsBindable) {
     EXPECT_NO_THROW(address3 = SockAddress::unix_abstract(unixa_binary));
     EXPECT_TRUE(address3.is_bindable());
 }
+
+TEST(SockAddress, IsIPOrUnix) {
+    const std::string ip1 = "::";
+    const std::string ip2 = "100.10.0.1";
+    const std::string unix = "some.socket";
+
+    SockAddress address1;
+    EXPECT_NO_THROW(address1 = SockAddress::ip6_numeric(ip1, 80));
+    EXPECT_TRUE(address1.is_ip());
+    EXPECT_FALSE(address1.is_unix());
+
+    SockAddress address2;
+    EXPECT_NO_THROW(address2 = SockAddress::ip4_numeric(ip2, 80));
+    EXPECT_TRUE(address2.is_ip());
+    EXPECT_FALSE(address2.is_unix());
+
+    SockAddress address3;
+    EXPECT_NO_THROW(address3 = SockAddress::unix_path(unix));
+    EXPECT_FALSE(address3.is_ip());
+    EXPECT_TRUE(address3.is_unix());
+}

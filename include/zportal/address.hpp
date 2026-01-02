@@ -2,6 +2,7 @@
 
 #include <span>
 #include <string>
+#include <variant>
 
 #include <cstddef>
 #include <cstdint>
@@ -24,6 +25,9 @@ class SockAddress {
     bool is_connectable() const noexcept;
     bool is_bindable() const noexcept;
 
+    bool is_ip() const noexcept;
+    bool is_unix() const noexcept;
+
     static SockAddress ip4_numeric(const std::string& numeric, std::uint16_t port);
     static SockAddress ip6_numeric(const std::string& numeric, std::uint16_t port);
     static SockAddress unix_path(const std::string& path);
@@ -34,5 +38,12 @@ class SockAddress {
     sockaddr_storage ss_{};
     socklen_t len_{};
 };
+
+struct HostPair {
+    std::string hostname;
+    std::uint16_t port;
+};
+
+using Address = std::variant<SockAddress, HostPair>;
 
 } // namespace zportal

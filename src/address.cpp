@@ -30,14 +30,14 @@ const static auto is_binary = [](std::span<const char> data) noexcept {
 };
 
 const static auto to_hex = [](std::span<const std::byte> data) {
-    static constexpr char up[] = "0123456789ABCDEF";
+    constexpr char up[] = "0123456789ABCDEF";
 
     std::string out;
     out.resize(data.size() * 2);
 
     std::size_t j = 0;
     for (std::byte b : data) {
-        auto v = static_cast<unsigned>(b);
+        auto v = std::to_integer<unsigned int>(b);
         out[j++] = up[(v >> 4) & 0xF];
         out[j++] = up[v & 0xF];
     }
@@ -205,6 +205,20 @@ bool zportal::SockAddress::is_bindable() const noexcept {
         return false;
 
     return true;
+}
+
+bool zportal::SockAddress::is_ip() const noexcept {
+    if (!is_valid())
+        return false;
+
+    return family() == AF_INET || family() == AF_INET6;
+}
+
+bool zportal::SockAddress::is_unix() const noexcept {
+    if (!is_valid())
+        return false;
+
+    return family() == AF_UNIX;
 }
 
 zportal::SockAddress zportal::SockAddress::ip4_numeric(const std::string& numeric, std::uint16_t port) {
