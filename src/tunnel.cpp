@@ -8,14 +8,16 @@
 #include <liburing.h>
 #include <unistd.h>
 
+#include <zportal/socket.hpp>
 #include <zportal/tun.hpp>
 #include <zportal/tunnel.hpp>
 
-zportal::Tunnel::Tunnel(io_uring* ring, int tcpfd, const TUNInterface* tun) : ring_(ring), tcpfd_(tcpfd), tun_(tun) {
+zportal::Tunnel::Tunnel(io_uring* ring, Socket&& tcp, const TUNInterface* tun)
+    : ring_(ring), tcp_(std::move(tcp)), tun_(tun) {
     if (!ring)
         throw std::invalid_argument("ring is null");
 
-    if (tcpfd_ < 0)
+    if (!tcp_)
         throw std::invalid_argument("invalid socket");
 
     if (!tun_)
@@ -29,7 +31,7 @@ zportal::Tunnel::Tunnel(io_uring* ring, int tcpfd, const TUNInterface* tun) : ri
 }
 
 zportal::Tunnel::Tunnel(Tunnel&& other) noexcept
-    : ring_(std::exchange(other.ring_, nullptr)), tcpfd_(std::exchange(other.tcpfd_, -1)),
+    : ring_(std::exchange(other.ring_, nullptr)), tcp_(std::move(other.tcp_)),
       tun_(std::exchange(other.tun_, nullptr)) {}
 
 zportal::Tunnel& zportal::Tunnel::operator=(Tunnel&& other) noexcept {
@@ -38,7 +40,7 @@ zportal::Tunnel& zportal::Tunnel::operator=(Tunnel&& other) noexcept {
 
     close();
     ring_ = std::exchange(other.ring_, nullptr);
-    tcpfd_ = std::exchange(other.tcpfd_, -1);
+    tcp_ = std::move(other.tcp_);
     tun_ = std::exchange(other.tun_, nullptr);
 
     return *this;
@@ -49,11 +51,7 @@ zportal::Tunnel::~Tunnel() noexcept {
 }
 
 void zportal::Tunnel::close() noexcept {
-    if (tcpfd_ < 0)
-        return;
-
-    ::close(tcpfd_);
-    tcpfd_ = -1;
+    tcp_.close();
 }
 
 static const auto get_sqe = [](io_uring* ring) {
@@ -75,7 +73,7 @@ void zportal::Tunnel::tcp_recv_header() {
 
     void* ptr = reinterpret_cast<std::byte*>(&rx_header) + rx_current_processed;
     const std::size_t size = sizeof(rx_header) - rx_current_processed;
-    ::io_uring_prep_recv(sqe, tcpfd_, ptr, size, 0);
+    ::io_uring_prep_recv(sqe, tcp_.get_fd(), ptr, size, 0);
 
     operation->ring = ring_;
     operation->type = OperationType::TCP_RECV_HEADER;
@@ -90,7 +88,7 @@ void zportal::Tunnel::tcp_recv() {
 
     void* ptr = rx.data() + rx_current_processed;
     const std::size_t size = static_cast<std::size_t>(::be32toh(rx_header.size)) - rx_current_processed;
-    ::io_uring_prep_recv(sqe, tcpfd_, ptr, size, 0);
+    ::io_uring_prep_recv(sqe, tcp_.get_fd(), ptr, size, 0);
 
     operation->ring = ring_;
     operation->type = OperationType::TCP_RECV;
@@ -137,7 +135,7 @@ void zportal::Tunnel::tcp_send_header() {
 
     const void* ptr = reinterpret_cast<std::byte*>(&tx_header) + tx_current_processed;
     const std::size_t size = sizeof(tx_header) - tx_current_processed;
-    ::io_uring_prep_send(sqe, tcpfd_, ptr, size, 0);
+    ::io_uring_prep_send(sqe, tcp_.get_fd(), ptr, size, 0);
 
     operation->ring = ring_;
     operation->type = OperationType::TCP_SEND_HEADER;
@@ -152,7 +150,7 @@ void zportal::Tunnel::tcp_send() {
 
     const void* ptr = tx.data() + tx_current_processed;
     const std::size_t size = static_cast<std::size_t>(::be32toh(tx_header.size)) - tx_current_processed;
-    ::io_uring_prep_send(sqe, tcpfd_, ptr, size, 0);
+    ::io_uring_prep_send(sqe, tcp_.get_fd(), ptr, size, 0);
 
     operation->ring = ring_;
     operation->type = OperationType::TCP_SEND;

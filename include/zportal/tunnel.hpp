@@ -6,6 +6,8 @@
 
 #include <liburing.h>
 
+#include "socket.hpp"
+
 namespace zportal {
 
 struct Header {
@@ -30,10 +32,11 @@ struct Operation {
 };
 
 class TUNInterface;
+class Socket;
 
 class Tunnel {
   public:
-    explicit Tunnel(io_uring* ring, int tcpfd, const TUNInterface* tun);
+    explicit Tunnel(io_uring* ring, Socket&& tcp, const TUNInterface* tun);
 
     Tunnel(Tunnel&&) noexcept;
     Tunnel& operator=(Tunnel&&) noexcept;
@@ -58,7 +61,7 @@ class Tunnel {
     void handle_cqe(io_uring_cqe* cqe);
 
   private:
-    int tcpfd_{-1};
+    Socket tcp_;
     const TUNInterface* tun_{};
     io_uring* ring_{};
     bool exited_{false};
