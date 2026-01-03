@@ -1,5 +1,6 @@
 set(SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/address.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/tun.cpp"
 )
 
 find_package(spdlog CONFIG REQUIRED)
