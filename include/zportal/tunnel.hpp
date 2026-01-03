@@ -7,6 +7,7 @@
 #include <liburing.h>
 
 #include "socket.hpp"
+#include "tun.hpp"
 
 namespace zportal {
 
@@ -30,9 +31,6 @@ struct Operation {
     OperationType type;
     io_uring* ring;
 };
-
-class TUNInterface;
-class Socket;
 
 class Tunnel {
   public:

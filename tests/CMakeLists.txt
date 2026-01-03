@@ -2,6 +2,7 @@ include(GoogleTest)
 
 set(TESTS
     "${CMAKE_CURRENT_SOURCE_DIR}/address.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/connection.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/socket.cpp"
 )
 

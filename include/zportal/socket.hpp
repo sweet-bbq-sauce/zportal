@@ -7,6 +7,7 @@ namespace zportal {
 class Socket {
   public:
     Socket() = default;
+    explicit Socket(int fd, sa_family_t family);
     
     Socket(Socket&&) noexcept;
     Socket& operator=(Socket&&) noexcept;
@@ -27,7 +28,6 @@ class Socket {
     static Socket create_socket(sa_family_t family);
 
   private:
-    explicit Socket(int fd, sa_family_t family);
     int fd_{-1};
     sa_family_t family_{};
 };
