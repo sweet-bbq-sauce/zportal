@@ -105,6 +105,10 @@ int zportal::TUNInterface::get_index() const noexcept {
     return index_;
 }
 
+zportal::TUNInterface::operator bool() const noexcept {
+    return get_fd() >= 0;
+}
+
 void zportal::TUNInterface::close() noexcept {
     if (fd_ < 0)
         return;

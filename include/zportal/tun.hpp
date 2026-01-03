@@ -11,7 +11,7 @@ namespace zportal {
 
 class TUNInterface {
   public:
-    TUNInterface(const std::string& name);
+    explicit TUNInterface(const std::string& name);
 
     TUNInterface(TUNInterface&&) noexcept;
     TUNInterface& operator=(TUNInterface&&) noexcept;
@@ -29,6 +29,8 @@ class TUNInterface {
     int get_fd() const noexcept;
     const std::string& get_name() const noexcept;
     int get_index() const noexcept;
+
+    explicit operator bool() const noexcept;
 
     void close() noexcept;
 
