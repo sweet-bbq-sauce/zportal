@@ -12,8 +12,8 @@
 #include <zportal/tun.hpp>
 #include <zportal/tunnel.hpp>
 
-zportal::Tunnel::Tunnel(io_uring* ring, Socket&& tcp, const TUNInterface* tun)
-    : ring_(ring), tcp_(std::move(tcp)), tun_(tun) {
+zportal::Tunnel::Tunnel(io_uring* ring, Socket&& tcp, const TUNInterface* tun, bool* exited)
+    : ring_(ring), tcp_(std::move(tcp)), tun_(tun), exited_(exited) {
     if (!ring)
         throw std::invalid_argument("ring is null");
 
@@ -26,13 +26,16 @@ zportal::Tunnel::Tunnel(io_uring* ring, Socket&& tcp, const TUNInterface* tun)
     if (!*tun_)
         throw std::invalid_argument("invalid TUN interface");
 
+    rx.resize(tun->get_mtu());
+    tx.resize(tun->get_mtu());
+
     tcp_recv_header();
     tun_read();
 }
 
 zportal::Tunnel::Tunnel(Tunnel&& other) noexcept
-    : ring_(std::exchange(other.ring_, nullptr)), tcp_(std::move(other.tcp_)),
-      tun_(std::exchange(other.tun_, nullptr)) {}
+    : ring_(std::exchange(other.ring_, nullptr)), tcp_(std::move(other.tcp_)), tun_(std::exchange(other.tun_, nullptr)),
+      exited_(std::exchange(other.exited_, nullptr)) {}
 
 zportal::Tunnel& zportal::Tunnel::operator=(Tunnel&& other) noexcept {
     if (this == &other)
@@ -42,6 +45,7 @@ zportal::Tunnel& zportal::Tunnel::operator=(Tunnel&& other) noexcept {
     ring_ = std::exchange(other.ring_, nullptr);
     tcp_ = std::move(other.tcp_);
     tun_ = std::exchange(other.tun_, nullptr);
+    exited_ = std::exchange(other.exited_, nullptr);
 
     return *this;
 }
@@ -205,7 +209,7 @@ void zportal::Tunnel::handle_cqe(io_uring_cqe* cqe) {
             tcp_recv_header();
         else if (result == 0) {
             std::cout << "TCP_RECV_HEADER: peer closed" << std::endl;
-            exited_ = true;
+            *exited_ = true;
         } else {
             rx_current_processed += static_cast<std::size_t>(result);
             if (rx_current_processed == sizeof(rx_header)) {
@@ -215,8 +219,8 @@ void zportal::Tunnel::handle_cqe(io_uring_cqe* cqe) {
                     std::cout << "TCP_RECV_HEADER: want to receive too big packet(" << size << "B), ignoring ..."
                               << std::endl;
                     tcp_recv_header();
-                }
-                tcp_recv();
+                } else
+                    tcp_recv();
             } else
                 tcp_recv_header();
         }
@@ -226,7 +230,7 @@ void zportal::Tunnel::handle_cqe(io_uring_cqe* cqe) {
             tcp_recv();
         else if (result == 0) {
             std::cout << "TCP_RECV: peer closed" << std::endl;
-            exited_ = true;
+            *exited_ = true;
         } else {
             rx_current_processed += static_cast<std::size_t>(result);
             if (rx_current_processed == ::be32toh(rx_header.size)) {
@@ -247,7 +251,7 @@ void zportal::Tunnel::handle_cqe(io_uring_cqe* cqe) {
             tun_read();
         else if (result == 0) {
             std::cout << "TUN_READ: interfce " << tun_->get_name() << " is closed" << std::endl;
-            exited_ = true;
+            *exited_ = true;
         } else {
             tx_header.size = ::htobe32(static_cast<std::uint32_t>(result));
             tcp_send_header();

@@ -29,6 +29,7 @@ class TUNInterface {
     int get_fd() const noexcept;
     const std::string& get_name() const noexcept;
     int get_index() const noexcept;
+    std::uint32_t get_mtu() const noexcept;
 
     explicit operator bool() const noexcept;
 
@@ -40,6 +41,7 @@ class TUNInterface {
     int fd_{-1};
     int index_{};
     std::string name_;
+    std::uint32_t mtu_;
 };
 
 } // namespace zportal

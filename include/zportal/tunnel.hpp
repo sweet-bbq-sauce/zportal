@@ -34,7 +34,7 @@ struct Operation {
 
 class Tunnel {
   public:
-    explicit Tunnel(io_uring* ring, Socket&& tcp, const TUNInterface* tun);
+    explicit Tunnel(io_uring* ring, Socket&& tcp, const TUNInterface* tun, bool* exited);
 
     Tunnel(Tunnel&&) noexcept;
     Tunnel& operator=(Tunnel&&) noexcept;
@@ -62,11 +62,11 @@ class Tunnel {
     Socket tcp_;
     const TUNInterface* tun_{};
     io_uring* ring_{};
-    bool exited_{false};
+    bool* exited_{};
 
-    Header rx_header, tx_header;
+    Header rx_header{}, tx_header{};
     std::vector<std::byte> rx, tx;
-    std::size_t rx_current_processed, tx_current_processed;
+    std::size_t rx_current_processed{}, tx_current_processed{};
     OperationType rx_current_operation, tx_current_operation;
 };
 

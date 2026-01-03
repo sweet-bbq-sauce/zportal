@@ -82,6 +82,7 @@ void zportal::TUNInterface::set_cidr(in_addr_t address, int prefix) {
 }
 
 void zportal::TUNInterface::set_mtu(std::uint32_t mtu) {
+    mtu_ = mtu;
     run_ip_command({"link", "set", "dev", name_, "mtu", std::to_string(mtu)});
 }
 
@@ -103,6 +104,10 @@ const std::string& zportal::TUNInterface::get_name() const noexcept {
 
 int zportal::TUNInterface::get_index() const noexcept {
     return index_;
+}
+
+std::uint32_t zportal::TUNInterface::get_mtu() const noexcept {
+    return mtu_;
 }
 
 zportal::TUNInterface::operator bool() const noexcept {
