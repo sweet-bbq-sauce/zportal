@@ -43,6 +43,9 @@ class SockAddress {
 struct HostPair {
     std::string hostname;
     std::uint16_t port;
+
+    bool is_connectable() const noexcept;
+    bool is_bindable() const noexcept; 
 };
 
 using Address = std::variant<SockAddress, HostPair>;
