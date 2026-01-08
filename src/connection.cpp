@@ -1,7 +1,6 @@
 #include <array>
 #include <cstdint>
 #include <cstring>
-#include <iostream>
 #include <netinet/in.h>
 #include <span>
 #include <stdexcept>
@@ -233,9 +232,6 @@ zportal::Socket zportal::accept_from(const Socket& listener) {
     const int clientfd = ::accept(listener.get_fd(), reinterpret_cast<sockaddr*>(&addr), &len);
     if (clientfd < 0)
         throw std::system_error(errno, std::system_category(), "accept");
-
-    std::cout << "New connection from: "
-              << SockAddress::from_sockaddr(reinterpret_cast<sockaddr*>(&addr), len).str(true) << std::endl;
 
     return Socket(clientfd, listener.get_family());
 }

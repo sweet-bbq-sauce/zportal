@@ -2,13 +2,15 @@
 
 #include <sys/socket.h>
 
+#include "address.hpp"
+
 namespace zportal {
 
 class Socket {
   public:
     Socket() = default;
     explicit Socket(int fd, sa_family_t family);
-    
+
     Socket(Socket&&) noexcept;
     Socket& operator=(Socket&&) noexcept;
 
@@ -24,6 +26,9 @@ class Socket {
 
     bool is_valid() const noexcept;
     explicit operator bool() const noexcept;
+
+    SockAddress get_local_address() const;
+    SockAddress get_remote_address() const;
 
     static Socket create_socket(sa_family_t family);
 

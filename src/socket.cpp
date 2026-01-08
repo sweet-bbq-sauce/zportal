@@ -1,7 +1,8 @@
-#include <cerrno>
-#include <stdexcept>
+#include "zportal/address.hpp"
 #include <system_error>
 #include <utility>
+
+#include <cerrno>
 
 #include <sys/socket.h>
 #include <unistd.h>
@@ -54,9 +55,29 @@ zportal::Socket::operator bool() const noexcept {
 zportal::Socket zportal::Socket::create_socket(sa_family_t family) {
     const int fd = ::socket(family, SOCK_STREAM, 0);
     if (fd < 0)
-        throw std::runtime_error(std::error_code{errno, std::system_category()}.message());
+        throw std::system_error(errno, std::system_category(), "socket");
 
     return Socket(fd, family);
 }
 
 zportal::Socket::Socket(int fd, sa_family_t family) : fd_(fd), family_(family) {}
+
+zportal::SockAddress zportal::Socket::get_local_address() const {
+    sockaddr_storage ss{};
+    socklen_t len = sizeof(ss);
+
+    if (::getsockname(fd_, reinterpret_cast<sockaddr*>(&ss), &len) < 0)
+        throw std::system_error(errno, std::system_category(), "getsockname");
+
+    return SockAddress::from_sockaddr(reinterpret_cast<const sockaddr*>(&ss), len);
+}
+
+zportal::SockAddress zportal::Socket::get_remote_address() const {
+    sockaddr_storage ss{};
+    socklen_t len = sizeof(ss);
+
+    if (::getpeername(fd_, reinterpret_cast<sockaddr*>(&ss), &len) < 0)
+        throw std::system_error(errno, std::system_category(), "getpeername");
+
+    return SockAddress::from_sockaddr(reinterpret_cast<const sockaddr*>(&ss), len);
+}

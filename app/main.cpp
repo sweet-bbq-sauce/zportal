@@ -194,13 +194,20 @@ int main(int argn, char* argv[]) {
         auto listener = zportal::create_listener(*config.bind_address);
         while (running) {
             auto client = zportal::accept_from(listener);
+            std::cout << "New connection from " << client.get_remote_address().str() << std::endl;
+
             handle_connection(ring, client, tun);
+
+            std::cout << "Client disconnected" << std::endl;
         }
     } else if (config.connect_address) {
         while (running) {
             auto sock = zportal::connect_to(*config.connect_address, config.proxies);
+            std::cout << "Connected to " << zportal::to_string(*config.connect_address) << std::endl;
+
             handle_connection(ring, sock, tun);
-            std::cout << "Reconnecting in " << config.reconnect_duration << " seconds ..." << std::endl;
+
+            std::cout << "Disconnected. Reconnecting in " << config.reconnect_duration << " seconds ..." << std::endl;
             std::this_thread::sleep_for(config.reconnect_duration);
         }
     }
