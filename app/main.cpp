@@ -1,3 +1,4 @@
+#include <exception>
 #include <iostream>
 #include <optional>
 #include <stdexcept>
@@ -28,7 +29,8 @@ int main(int argn, char* argv[]) {
     // std::signal(SIGTERM, handle_signal);
     // std::signal(SIGINT, handle_signal);
 
-    zportal::Config config = zportal::parse_arguments(argn, argv);
+    zportal::Config config;
+    zportal::parse_arguments(config, argn, argv);
 
     zportal::TUNInterface tun(config.interface_name);
     tun.set_mtu(config.mtu);
@@ -72,14 +74,39 @@ int main(int argn, char* argv[]) {
             std::cout << "Client disconnected" << std::endl;
         }
     } else if (config.connect_address) {
+        std::size_t errors{};
         while (running) {
-            auto sock = zportal::connect_to(*config.connect_address, config.proxies);
-            std::cout << "Connected to " << zportal::to_string(*config.connect_address) << std::endl;
 
-            handle_connection(ring, sock, tun);
+            if (errors >= config.error_threshold) {
+                std::cout << "Exiting." << std::endl;
+                return EXIT_FAILURE;
+            }
 
-            std::cout << "Disconnected. Reconnecting in " << config.reconnect_duration << " seconds ..." << std::endl;
-            std::this_thread::sleep_for(config.reconnect_duration);
+            zportal::Socket sock;
+            try {
+                sock = zportal::connect_to(*config.connect_address, config.proxies);
+
+                errors = 0;
+                std::cout << "Connected to " << zportal::to_string(*config.connect_address) << std::endl;
+            } catch (const std::exception& e) {
+                errors++;
+                std::cout << "Can't connect to " << zportal::to_string(*config.connect_address) << ": " << e.what()
+                          << std::endl;
+                std::cout << "Reconnecting in " << config.reconnect_duration << " seconds." << std::endl;
+                std::this_thread::sleep_for(config.reconnect_duration);
+                continue;
+            }
+
+            try {
+                handle_connection(ring, sock, tun);
+            } catch (const std::exception& e) {
+                errors++;
+                std::cout << "Disconnected from " << zportal::to_string(*config.connect_address) << ": " << e.what()
+                          << std::endl;
+                std::cout << "Reconnecting in " << config.reconnect_duration << " seconds." << std::endl;
+                std::this_thread::sleep_for(config.reconnect_duration);
+                continue;
+            }
         }
     }
 

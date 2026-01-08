@@ -172,7 +172,7 @@ void zportal::Tunnel::tcp_send() {
     sqe_submit(ring_);
 }
 
-static const auto log_info = [](zportal::OperationType optype, int result) {
+constexpr auto log_info = [](zportal::OperationType optype, int result) {
     std::string optype_string;
     switch (optype) {
     case zportal::OperationType::TCP_RECV_HEADER:
