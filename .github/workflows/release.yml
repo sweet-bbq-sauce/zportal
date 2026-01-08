@@ -19,7 +19,7 @@ jobs:
       - name: Toolchain
         run: |
           sudo apt-get update
-          sudo apt-get install -y libspdlog-dev liburing-dev
+          sudo apt-get install -y liburing-dev
 
       - name: Configure
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
