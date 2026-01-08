@@ -1,10 +1,10 @@
 #include <chrono>
 #include <iostream>
+#include <limits>
+#include <string>
 
 #include <cstdlib>
 
-#include <limits>
-#include <string>
 #include <unistd.h>
 
 #include <zportal/config.hpp>
@@ -22,8 +22,8 @@ constexpr auto help = [](zportal::Config& config, const std::string& program_nam
     std::cout << "-b <bind address> \tServer mode." << std::endl;
     std::cout << "-c <connect address> \tClient mode." << std::endl;
     std::cout << "-r <seconds> \t\tReconnect duration. Has no effect with '-b'. Defaults: " << config.reconnect_duration
-              << "s." << std::endl;
-    std::cout << "-e <count> \t\tError threshold. Has no effect with '-b'. Defaults: " << config.error_threshold << "s."
+              << "." << std::endl;
+    std::cout << "-e <count> \t\tError threshold. Has no effect with '-b'. Defaults: " << config.error_threshold << "."
               << std::endl;
     std::cout << "-p <proxy> \t\tProxy address." << std::endl;
     std::cout << std::endl;

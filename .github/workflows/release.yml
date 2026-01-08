@@ -29,12 +29,18 @@ jobs:
 
       - name: Package
         run: |
-          mkdir -p dist
-          cp build/app/zportald dist/
-          tar -czf zportald-${{ github.ref_name }}-linux-x86_64.tar.gz -C dist zportald
+          cd build
+          cpack
+
+      - name: List artifacts
+        run: |
+          ls -lah build
+          ls -lah build/*.tar.gz build/*.deb || true
 
       - name: Create GitHub Release and upload assets
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            zportald-${{ github.ref_name }}-linux-x86_64.tar.gz
+            build/*.tar.gz
+            build/*.deb
+          generate_release_notes: true

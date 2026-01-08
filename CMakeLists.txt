@@ -13,6 +13,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+include("${PROJECT_SOURCE_DIR}/cmake/install.cmake")
 include(FetchContent)
 
 add_subdirectory("${PROJECT_SOURCE_DIR}/src")
