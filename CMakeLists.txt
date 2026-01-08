@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.23)
 cmake_policy(SET CMP0135 NEW)
 project(zportal
-    VERSION 0.1.2
+    VERSION 0.1.3
     DESCRIPTION "IP4 tunneling through socks"
     HOMEPAGE_URL "https://github.com/sweet-bbq-sauce/zportal"
     LANGUAGES CXX
