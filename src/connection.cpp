@@ -229,7 +229,8 @@ zportal::Socket zportal::accept_from(const Socket& listener) {
     sockaddr_storage addr{};
     socklen_t len = sizeof(addr);
 
-    const int clientfd = ::accept(listener.get_fd(), reinterpret_cast<sockaddr*>(&addr), &len);
+    const int clientfd =
+        ::accept4(listener.get_fd(), reinterpret_cast<sockaddr*>(&addr), &len, SOCK_NONBLOCK | SOCK_CLOEXEC);
     if (clientfd < 0)
         throw std::system_error(errno, std::system_category(), "accept");
 

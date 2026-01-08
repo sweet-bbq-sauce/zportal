@@ -53,7 +53,7 @@ zportal::Socket::operator bool() const noexcept {
 }
 
 zportal::Socket zportal::Socket::create_socket(sa_family_t family) {
-    const int fd = ::socket(family, SOCK_STREAM, 0);
+    const int fd = ::socket(family, SOCK_STREAM | SOCK_CLOEXEC, 0);
     if (fd < 0)
         throw std::system_error(errno, std::system_category(), "socket");
 

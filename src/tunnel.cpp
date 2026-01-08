@@ -5,6 +5,7 @@
 #include <vector>
 
 #include <endian.h>
+#include <fcntl.h>
 #include <liburing.h>
 #include <unistd.h>
 
@@ -25,6 +26,14 @@ zportal::Tunnel::Tunnel(io_uring* ring, Socket&& tcp, const TUNInterface* tun, b
 
     if (!*tun_)
         throw std::invalid_argument("invalid TUN interface");
+
+    const int flags = ::fcntl(tcp_.get_fd(), F_GETFL, 0);
+    if (flags < 0)
+        throw std::system_error(errno, std::system_category(), "fcntl F_GETFL");
+
+    if (!(flags & O_NONBLOCK))
+        if (::fcntl(tcp_.get_fd(), F_SETFL, flags | O_NONBLOCK) < 0)
+            throw std::system_error(errno, std::system_category(), "fcntl F_SETFL");
 
     rx.resize(tun->get_mtu());
     tx.resize(tun->get_mtu());
