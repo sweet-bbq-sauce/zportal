@@ -1,4 +1,3 @@
-#include <array>
 #include <stdexcept>
 #include <string>
 #include <system_error>
@@ -65,20 +64,8 @@ zportal::TUNInterface::~TUNInterface() noexcept {
     close();
 }
 
-void zportal::TUNInterface::set_cidr(in_addr_t address, int prefix) {
-    if (prefix > 32)
-        throw std::invalid_argument("prefix is too big");
-
-    std::string buffer;
-    std::array<char, INET_ADDRSTRLEN> ip4{};
-    if (::inet_ntop(AF_INET, &address, ip4.data(), ip4.size()) == nullptr)
-        throw std::runtime_error(std::error_code{errno, std::system_category()}.message());
-
-    buffer.append(ip4.data());
-    buffer.append("/");
-    buffer.append(std::to_string(prefix));
-
-    run_ip_command({"addr", "add", buffer, "dev", name_});
+void zportal::TUNInterface::set_cidr(Cidr cidr) {
+    run_ip_command({"addr", "add", cidr.str(), "dev", name_});
 }
 
 void zportal::TUNInterface::set_mtu(std::uint32_t mtu) {

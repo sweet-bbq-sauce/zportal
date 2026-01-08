@@ -7,6 +7,8 @@
 
 #include <netinet/in.h>
 
+#include "address.hpp"
+
 namespace zportal {
 
 class TUNInterface {
@@ -21,7 +23,7 @@ class TUNInterface {
 
     ~TUNInterface() noexcept;
 
-    void set_cidr(in_addr_t address, int prefix);
+    void set_cidr(Cidr cidr);
     void set_mtu(std::uint32_t mtu);
     void set_up();
     void set_down();

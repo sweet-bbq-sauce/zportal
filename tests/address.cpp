@@ -297,3 +297,76 @@ TEST(SockAddress, IsIPOrUnix) {
     EXPECT_FALSE(address3.is_ip());
     EXPECT_TRUE(address3.is_unix());
 }
+
+TEST(ParseAddressString, ToUnixPath) {
+    const std::string unix = "unix:some/socket";
+    const std::string unix_short = "some/socket";
+    Address addr;
+
+    EXPECT_NO_THROW(addr = parse_address(unix));
+    EXPECT_EQ(to_string(addr, true), unix);
+    EXPECT_EQ(to_string(addr, false), unix_short);
+}
+
+TEST(ParseAddressString, ToUnixAbstract) {
+    const std::string unix = "unixa:socket name";
+    const std::string unix_short = "socket name";
+    Address addr;
+
+    EXPECT_NO_THROW(addr = parse_address(unix));
+    EXPECT_EQ(to_string(addr, true), unix);
+    EXPECT_EQ(to_string(addr, false), unix_short);
+}
+
+TEST(ParseAddressString, ToIP4) {
+    const std::string ip = "123.45.67.89:8765";
+    const std::string ip_short = "123.45.67.89";
+    Address addr;
+
+    EXPECT_NO_THROW(addr = parse_address(ip));
+    EXPECT_EQ(to_string(addr, true), ip);
+    EXPECT_EQ(to_string(addr, false), ip_short);
+}
+
+TEST(ParseAddressString, ToUnixIP6) {
+    const std::string ip = "[::1]:23456";
+    const std::string ip_short = "::1";
+    Address addr;
+
+    EXPECT_NO_THROW(addr = parse_address(ip));
+    EXPECT_EQ(to_string(addr, true), ip);
+    EXPECT_EQ(to_string(addr, false), ip_short);
+}
+
+TEST(ParseAddressString, ToHostPair) {
+    const std::string hostname1 = "some.site.com:23456";
+    const std::string hostname1_short = "some.site.com";
+
+    Address addr1;
+    EXPECT_NO_THROW(addr1 = parse_address(hostname1));
+    EXPECT_EQ(to_string(addr1, true), hostname1);
+    EXPECT_EQ(to_string(addr1, false), hostname1_short);
+
+    const std::string hostname2 = "localhost:23456";
+    const std::string hostname2_short = "localhost";
+
+    Address addr2;
+    EXPECT_NO_THROW(addr2 = parse_address(hostname2));
+    EXPECT_EQ(to_string(addr2, true), hostname2);
+    EXPECT_EQ(to_string(addr2, false), hostname2_short);
+}
+
+TEST(ParseCidrString, IP4) {
+    const std::string ip = "10.1.0.1/24";
+    Cidr cidr;
+
+    EXPECT_NO_THROW(cidr = parse_cidr(ip));
+    EXPECT_EQ(cidr.str(), ip);
+}
+
+TEST(ParseCidrString, IP4InvalidPrefix) {
+    const std::string ip = "10.1.0.1/40";
+    Cidr cidr;
+
+    EXPECT_THROW(cidr = parse_cidr(ip), std::invalid_argument);
+}
