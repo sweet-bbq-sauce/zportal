@@ -1,11 +1,9 @@
-#include <crc32intrin.h>
 #include <span>
 
 #include <cstddef>
 #include <cstdint>
 
 #include <cpuid.h>
-#include <nmmintrin.h>
 
 #include <zportal/crc.hpp>
 
