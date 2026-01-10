@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <chrono>
 #include <optional>
 #include <string>
@@ -10,6 +11,8 @@
 #include "address.hpp"
 
 namespace zportal {
+
+extern std::atomic_bool verbose_mode;
 
 struct Config {
 
@@ -27,6 +30,8 @@ struct Config {
     std::chrono::seconds reconnect_duration{5};
     std::chrono::seconds connect_timeout{5};
     std::size_t error_threshold{10};
+
+    bool verbose_mode{};
 
     unsigned io_uring_entries{32};
 };

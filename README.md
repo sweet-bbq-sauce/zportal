@@ -6,7 +6,7 @@
 ## Usage
 
 ```bash
-zportald -n <ifname> -m <MTU> -a <peer address> (-b <bind addr> | -c <connect addr>) [-p <proxy>]-r <seconds> -e <count>
+zportald -n <ifname> -m <MTU> -a <peer address> (-b <bind addr> | -c <connect addr>) [-p <proxy>]-r <seconds> -e <count> -V
 ```
 
 - `-n <ifname>` - TUN device name. For example `tun0`, `tun%d`.
@@ -17,6 +17,7 @@ zportald -n <ifname> -m <MTU> -a <peer address> (-b <bind addr> | -c <connect ad
 - `-r <seconds>` - Reconnect duration. Has no effect with `-b`.
 - `-e <count>` - Error threshold. Has no effect with `-b`.
 - `-p <proxy>` - Proxy address. Has no effect with `-b`.
+- `-V` - Verbose mode.
 
 ## Building and installation
 

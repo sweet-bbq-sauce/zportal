@@ -1,3 +1,4 @@
+#include <atomic>
 #include <chrono>
 #include <iostream>
 #include <limits>
@@ -9,11 +10,13 @@
 
 #include <zportal/config.hpp>
 
+std::atomic_bool zportal::verbose_mode{false};
+
 constexpr auto help = [](zportal::Config& config, const std::string& program_name) {
     std::cout << "Usage:" << std::endl;
     std::cout << program_name
               << " -n <ifname> -m <MTU> -a <peer address> (-b <bind addr> | -c <connect addr>) [-p <proxy>]"
-                 "-r <seconds> -e <count>"
+                 "-r <seconds> -e <count> -V"
               << std::endl;
     std::cout << std::endl;
     std::cout << "-n <ifname> \t\tTUN device name. For example 'tun0', 'tun%d'." << std::endl;
@@ -26,6 +29,7 @@ constexpr auto help = [](zportal::Config& config, const std::string& program_nam
     std::cout << "-e <count> \t\tError threshold. Has no effect with '-b'. Defaults: " << config.error_threshold << "."
               << std::endl;
     std::cout << "-p <proxy> \t\tProxy address." << std::endl;
+    std::cout << "-V \t\t\tVerbose mode." << std::endl;
     std::cout << std::endl;
     std::cout << "-h \tPrint this help info." << std::endl;
     std::cout << "-v \tPrint version." << std::endl;
@@ -42,7 +46,7 @@ void zportal::parse_arguments(zportal::Config& config, int argn, char* argv[]) {
 
     try {
         int opt;
-        while ((opt = ::getopt(argn, argv, ":n:m:a:c:b:r:e:p:hv")) != -1) {
+        while ((opt = ::getopt(argn, argv, ":n:m:a:c:b:r:e:p:Vhv")) != -1) {
             switch (opt) {
             case 'n':
                 config.interface_name = optarg;
@@ -78,6 +82,10 @@ void zportal::parse_arguments(zportal::Config& config, int argn, char* argv[]) {
 
             case 'p':
                 config.proxies.emplace_back(zportal::parse_address(optarg));
+                break;
+
+            case 'V':
+                verbose_mode.store(true, std::memory_order_relaxed);
                 break;
 
             case 'h':
