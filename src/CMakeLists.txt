@@ -4,6 +4,7 @@ set(SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/address.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/config.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/connection.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/crc.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/socket.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/tun.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/tunnel.cpp"

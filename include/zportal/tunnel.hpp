@@ -65,7 +65,7 @@ class Tunnel {
     bool* exited_{};
 
     Header rx_header{}, tx_header{};
-    std::vector<std::byte> rx, tx;
+    alignas(8) std::vector<std::byte> rx, tx;
     std::size_t rx_current_processed{}, tx_current_processed{};
     OperationType rx_current_operation, tx_current_operation;
 };
