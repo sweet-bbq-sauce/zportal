@@ -1,4 +1,5 @@
 #include <iostream>
+#include <netinet/in.h>
 #include <stdexcept>
 #include <system_error>
 #include <utility>
@@ -232,9 +233,8 @@ void zportal::Tunnel::handle_cqe(io_uring_cqe* cqe) {
                     std::cout << "TCP_RECV_HEADER: want to receive too big packet(" << size << "B), ignoring ..."
                               << std::endl;
                     tcp_recv_header();
-                }
-
-                tcp_recv();
+                } else
+                    tcp_recv();
             } else
                 tcp_recv_header();
         }
@@ -250,7 +250,7 @@ void zportal::Tunnel::handle_cqe(io_uring_cqe* cqe) {
             if (rx_current_processed == ::be32toh(rx_header.size)) {
                 rx_current_processed = 0;
 
-                if (crc32c({rx.data(), ::ntohl(rx_header.size)}) != rx_header.crc) {
+                if (crc32c({rx.data(), ::be32toh(rx_header.size)}) != rx_header.crc) {
                     std::cout << "TCP_RECV: CRC mismatch. Ignoring packet." << std::endl;
                     tcp_recv_header();
                 } else
@@ -274,7 +274,7 @@ void zportal::Tunnel::handle_cqe(io_uring_cqe* cqe) {
         } else {
             tx_header.magic = zportal::magic;
             tx_header.size = ::htobe32(static_cast<std::uint32_t>(result));
-            tx_header.crc = crc32c({tx.data(), tx_header.size});
+            tx_header.crc = crc32c({tx.data(), ::be32toh(tx_header.size)});
             tcp_send_header();
         }
     }; break;
