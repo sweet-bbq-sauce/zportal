@@ -11,8 +11,12 @@
 
 namespace zportal {
 
+constexpr std::uint32_t magic = 0x5A504F52;
+
 struct Header {
+    std::uint32_t magic;
     std::uint32_t size;
+    std::uint32_t crc;
 };
 
 enum class OperationType {

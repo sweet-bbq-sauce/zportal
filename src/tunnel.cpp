@@ -9,6 +9,7 @@
 #include <liburing.h>
 #include <unistd.h>
 
+#include <zportal/crc.hpp>
 #include <zportal/socket.hpp>
 #include <zportal/tun.hpp>
 #include <zportal/tunnel.hpp>
@@ -223,13 +224,17 @@ void zportal::Tunnel::handle_cqe(io_uring_cqe* cqe) {
             rx_current_processed += static_cast<std::size_t>(result);
             if (rx_current_processed == sizeof(rx_header)) {
                 rx_current_processed = 0;
+                if (rx_header.magic != zportal::magic)
+                    throw std::runtime_error("connection desynchronized");
+
                 const std::uint32_t size = ::be32toh(rx_header.size);
                 if (size > rx.size()) {
                     std::cout << "TCP_RECV_HEADER: want to receive too big packet(" << size << "B), ignoring ..."
                               << std::endl;
                     tcp_recv_header();
-                } else
-                    tcp_recv();
+                }
+
+                tcp_recv();
             } else
                 tcp_recv_header();
         }
@@ -244,7 +249,12 @@ void zportal::Tunnel::handle_cqe(io_uring_cqe* cqe) {
             rx_current_processed += static_cast<std::size_t>(result);
             if (rx_current_processed == ::be32toh(rx_header.size)) {
                 rx_current_processed = 0;
-                tun_write();
+
+                if (crc32c({rx.data(), ::ntohl(rx_header.size)}) != rx_header.crc) {
+                    std::cout << "TCP_RECV: CRC mismatch. Ignoring packet." << std::endl;
+                    tcp_recv_header();
+                } else
+                    tun_write();
             } else
                 tcp_recv();
         }
@@ -262,7 +272,9 @@ void zportal::Tunnel::handle_cqe(io_uring_cqe* cqe) {
             std::cout << "TUN_READ: interfce " << tun_->get_name() << " is closed" << std::endl;
             *exited_ = true;
         } else {
+            tx_header.magic = zportal::magic;
             tx_header.size = ::htobe32(static_cast<std::uint32_t>(result));
+            tx_header.crc = crc32c({tx.data(), tx_header.size});
             tcp_send_header();
         }
     }; break;
