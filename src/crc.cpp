@@ -3,11 +3,14 @@
 #include <cstddef>
 #include <cstdint>
 
-#include <cpuid.h>
+#if defined(__x86_64__) || defined(__i386__)
+#    include <cpuid.h>
+#endif
 
 #include <zportal/crc.hpp>
 
 bool zportal::is_sse4_supported() noexcept {
+#if defined(__x86_64__) || defined(__i386__)
     static const bool supported = ([]() -> bool {
         unsigned eax, ebx, ecx, edx;
         if (!__get_cpuid(1, &eax, &ebx, &ecx, &edx))
@@ -17,6 +20,9 @@ bool zportal::is_sse4_supported() noexcept {
     })();
 
     return supported;
+#else
+    return false;
+#endif
 }
 
 constexpr auto crc32c_software = [](std::span<const std::byte> data) -> std::uint32_t {
