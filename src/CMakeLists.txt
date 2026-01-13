@@ -1,7 +1,12 @@
 include(GNUInstallDirs)
 
 set(SOURCES
-    "${CMAKE_CURRENT_SOURCE_DIR}/address.cpp"
+
+    # Address
+    "${CMAKE_CURRENT_SOURCE_DIR}/address/address.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/address/cidr.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/address/parse.cpp"
+
     "${CMAKE_CURRENT_SOURCE_DIR}/config.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/connection.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/crc.cpp"

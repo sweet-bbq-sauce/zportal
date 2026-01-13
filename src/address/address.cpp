@@ -1,11 +1,10 @@
 #include <array>
 #include <charconv>
-#include <limits>
-#include <regex>
 #include <span>
 #include <stdexcept>
 #include <string>
 #include <system_error>
+#include <variant>
 
 #include <cctype>
 #include <cerrno>
@@ -20,10 +19,9 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 
-#include <variant>
 #include <zportal/address.hpp>
 
-const static auto is_binary = [](std::span<const char> data) noexcept {
+constexpr auto is_binary = [](std::span<const char> data) noexcept {
     for (const auto c : data) {
         if (!std::isprint(static_cast<unsigned char>(c)))
             return true;
@@ -32,7 +30,7 @@ const static auto is_binary = [](std::span<const char> data) noexcept {
     return false;
 };
 
-const static auto to_hex = [](std::span<const std::byte> data) {
+constexpr auto to_hex = [](std::span<const std::byte> data) {
     constexpr char up[] = "0123456789ABCDEF";
 
     std::string out;
@@ -47,7 +45,7 @@ const static auto to_hex = [](std::span<const std::byte> data) {
     return out;
 };
 
-const static auto is_supported_family = [](sa_family_t family) noexcept {
+constexpr auto is_supported_family = [](sa_family_t family) noexcept {
     return family == AF_INET || family == AF_INET6 || family == AF_UNIX;
 };
 
@@ -62,7 +60,7 @@ std::string zportal::SockAddress::str(bool extended) const {
         const auto* ip4 = reinterpret_cast<const sockaddr_in*>(&ss_);
 
         if (::inet_ntop(AF_INET, &ip4->sin_addr, address.data(), address.size()) == nullptr)
-            throw std::runtime_error(std::error_code{errno, std::system_category()}.message());
+            throw std::system_error(errno, std::system_category(), "inet_ntop");
 
         buffer.append(address.data());
 
@@ -88,7 +86,7 @@ std::string zportal::SockAddress::str(bool extended) const {
             buffer.append("[");
 
         if (::inet_ntop(AF_INET6, &ip6->sin6_addr, address.data(), address.size()) == nullptr)
-            throw std::runtime_error(std::error_code{errno, std::system_category()}.message());
+            throw std::system_error(errno, std::system_category(), "inet_ntop");
 
         buffer.append(address.data());
 
@@ -258,7 +256,7 @@ zportal::SockAddress zportal::SockAddress::ip4_numeric(const std::string& numeri
     ip4->sin_port = ::htons(port);
 
     if (const int result = ::inet_pton(AF_INET, numeric.c_str(), &ip4->sin_addr); result == -1)
-        throw std::runtime_error(std::error_code{errno, std::system_category()}.message());
+        throw std::system_error(errno, std::system_category(), "inet_pton");
     else if (result == 0)
         throw std::runtime_error("invalid IP4 presentation");
 
@@ -326,109 +324,6 @@ zportal::SockAddress zportal::SockAddress::unix_abstract(std::span<const std::by
 zportal::SockAddress zportal::SockAddress::unix_abstract(const std::string& name) {
     std::span<const std::byte> view{reinterpret_cast<const std::byte*>(name.data()), name.size()};
     return unix_abstract(view);
-}
-
-zportal::Cidr::Cidr(zportal::SockAddress address, std::uint8_t prefix) : address_(address), prefix_(prefix) {
-    if (address.family() == AF_INET) {
-        if (prefix > 32)
-            throw std::invalid_argument("prefix for IPv4 must be 0-32");
-    } else if (address.family() == AF_INET6) {
-        if (prefix > 128)
-            throw std::invalid_argument("prefix for IPv6 must be 0-128");
-    } else
-        throw std::invalid_argument("address must be IPv4 or IPv6");
-}
-
-const zportal::SockAddress& zportal::Cidr::get_address() const noexcept {
-    return address_;
-}
-
-const std::uint8_t zportal::Cidr::get_prefix() const noexcept {
-    return prefix_;
-}
-
-bool zportal::Cidr::is_ip4() const noexcept {
-    return address_.family() == AF_INET;
-}
-
-bool zportal::Cidr::is_ip6() const noexcept {
-    return address_.family() == AF_INET6;
-}
-
-bool zportal::Cidr::is_valid() const noexcept {
-    return address_.is_ip();
-}
-
-zportal::Cidr::operator bool() const noexcept {
-    return is_valid();
-}
-
-std::string zportal::Cidr::str() const {
-    return address_.str(false) + '/' + std::to_string(prefix_);
-}
-
-zportal::Address zportal::parse_address(const std::string& address) {
-    static const std::regex re_unix(R"(^unix:(.+)$)");
-    static const std::regex re_unixa(R"(^unixa:(.+)$)");
-    static const std::regex re_ip4(
-        R"(^((
-        (?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.
-        (?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.
-        (?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.
-        (?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)
-    )):(\d{1,5})$)");
-    static const std::regex re_ip6(R"(^\[([^\]]+)\]:(\d{1,5})$)");
-    static const std::regex re_host(R"(^([^\s:\[\]]+):(\d{1,5})$)");
-
-    constexpr auto parse_port = [](const std::string& port_str) {
-        const auto unverified_port = std::stoll(port_str);
-        if (unverified_port < 0 || unverified_port > std::numeric_limits<std::uint16_t>::max())
-            throw std::invalid_argument("port must be 0-65535");
-
-        return static_cast<std::uint16_t>(unverified_port);
-    };
-
-    std::smatch m;
-    if (std::regex_match(address, m, re_unix))
-        return SockAddress::unix_path(m[1].str());
-
-    else if (std::regex_match(address, m, re_unixa))
-        return SockAddress::unix_abstract(m[1].str());
-
-    else if (std::regex_match(address, m, re_ip4))
-        return SockAddress::ip4_numeric(m[1].str(), parse_port(m[2].str()));
-
-    else if (std::regex_match(address, m, re_ip6))
-        return SockAddress::ip6_numeric(m[1].str(), parse_port(m[2].str()));
-
-    else if (std::regex_match(address, m, re_host))
-        return HostPair{m[1].str(), parse_port(m[2].str())};
-
-    throw std::invalid_argument("unknown address format");
-}
-
-zportal::Cidr zportal::parse_cidr(const std::string& cidr) {
-    const auto slash_position = cidr.find('/');
-    if (slash_position == std::string::npos)
-        throw std::invalid_argument("'/' character is not present");
-
-    const std::string address = cidr.substr(0, slash_position);
-    SockAddress sa;
-    try {
-        sa = SockAddress::ip4_numeric(address, 0);
-    } catch (...) {
-        try {
-            sa = SockAddress::ip6_numeric(address, 0);
-        } catch (...) {
-            throw;
-        }
-    }
-
-    const auto unverified_prefix = std::stoul(cidr.substr(slash_position + 1));
-    if (unverified_prefix > 128)
-        throw std::invalid_argument("invalid prefix");
-
-    return Cidr{sa, static_cast<std::uint8_t>(unverified_prefix)};
 }
 
 std::string zportal::HostPair::str(bool extended) const {
