@@ -370,3 +370,39 @@ TEST(ParseCidrString, IP4InvalidPrefix) {
 
     EXPECT_THROW(cidr = parse_cidr(ip), std::invalid_argument);
 }
+
+TEST(Cidr, AddressToNetwork) {
+    const std::string ip1 = "10.1.0.16/24";
+    const std::string network_ip1 = "10.1.0.0/24";
+    Cidr cidr1;
+
+    EXPECT_NO_THROW(cidr1 = parse_cidr(ip1));
+
+    Cidr network1;
+    EXPECT_NO_THROW(network1 = cidr1.get_network());
+    EXPECT_EQ(network1.str(), network_ip1);
+
+    const std::string ip2 = "123.4.5.67/13";
+    const std::string network_ip2 = "123.0.0.0/13";
+    Cidr cidr2;
+
+    EXPECT_NO_THROW(cidr2 = parse_cidr(ip2));
+
+    Cidr network2;
+    EXPECT_NO_THROW(network2 = cidr2.get_network());
+    EXPECT_EQ(network2.str(), network_ip2);
+}
+
+TEST(Cidr, IsHostInNetwork) {
+    const std::string network_ip = "10.1.0.0/24";
+    const std::string host_ip1 = "10.1.0.61";
+    const std::string host_ip2 = "10.0.0.61";
+    Cidr network;
+    SockAddress host1, host2;
+
+    EXPECT_NO_THROW(network = parse_cidr(network_ip));
+    EXPECT_NO_THROW(host1 = SockAddress::ip4_numeric(host_ip1, 0));
+
+    EXPECT_TRUE(network.is_in_network(host1));
+    EXPECT_FALSE(network.is_in_network(host2));
+}

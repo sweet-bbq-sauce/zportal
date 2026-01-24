@@ -54,6 +54,9 @@ class Cidr {
     bool is_valid() const noexcept;
     explicit operator bool() const noexcept;
 
+    Cidr get_network() const noexcept;
+    bool is_in_network(const SockAddress& address) const noexcept;
+
     std::string str() const;
 
   private:
