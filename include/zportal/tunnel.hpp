@@ -28,7 +28,9 @@ enum class OperationType {
     // TX
     TUN_READ,
     TCP_SEND_HEADER,
-    TCP_SEND
+    TCP_SEND,
+
+    MONITOR_REFRESH
 };
 
 struct Operation {
@@ -60,6 +62,10 @@ class Tunnel {
     void tcp_send_header();
     void tcp_send();
 
+    // Monitor refreshing
+    void wait_for_refresh();
+    void refresh_monitor();
+
     void handle_cqe(io_uring_cqe* cqe);
 
   private:
@@ -69,9 +75,9 @@ class Tunnel {
     bool* exited_{};
 
     Header rx_header{}, tx_header{};
-    alignas(8) std::vector<std::byte> rx, tx;
+    std::vector<std::byte> rx, tx;
     std::size_t rx_current_processed{}, tx_current_processed{};
-    OperationType rx_current_operation, tx_current_operation;
+    std::uintmax_t rx_total{}, tx_total{};
 };
 
 } // namespace zportal

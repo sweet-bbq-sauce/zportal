@@ -1,5 +1,7 @@
 #include <atomic>
+#include <cerrno>
 #include <iostream>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <system_error>
@@ -9,6 +11,7 @@
 #include <endian.h>
 #include <fcntl.h>
 #include <liburing.h>
+#include <linux/time_types.h>
 #include <unistd.h>
 
 #include <zportal/config.hpp>
@@ -44,6 +47,7 @@ zportal::Tunnel::Tunnel(io_uring* ring, Socket&& tcp, const TUNInterface* tun, b
 
     tcp_recv_header();
     tun_read();
+    wait_for_refresh();
 }
 
 zportal::Tunnel::Tunnel(Tunnel&& other) noexcept
@@ -176,6 +180,31 @@ void zportal::Tunnel::tcp_send() {
     sqe_submit(ring_);
 }
 
+void zportal::Tunnel::wait_for_refresh() {
+    auto* sqe = get_sqe(ring_);
+    auto* operation = new Operation{};
+
+    __kernel_timespec ts{};
+    ts.tv_sec = 1;
+    ::io_uring_prep_timeout(sqe, &ts, 0, 0);
+
+    operation->ring = ring_;
+    operation->type = OperationType::MONITOR_REFRESH;
+    ::io_uring_sqe_set_data(sqe, operation);
+
+    sqe_submit(ring_);
+}
+
+void zportal::Tunnel::refresh_monitor() {
+    if (!monitor_mode.load(std::memory_order_relaxed))
+        return;
+
+    std::ostringstream oss;
+    oss << "\r\x1b[2K" << "RX: " << rx_total << " B | TX: " << tx_total << " B";
+    const std::string line = oss.str();
+    ::write(STDERR_FILENO, line.data(), line.size());
+}
+
 constexpr auto operation_string(zportal::OperationType optype) {
     std::string optype_string;
     switch (optype) {
@@ -198,6 +227,10 @@ constexpr auto operation_string(zportal::OperationType optype) {
         optype_string = "PEER_SND";
         break;
 
+    case zportal::OperationType::MONITOR_REFRESH:
+        optype_string = "MONITOR_REFRESH";
+        break;
+
     default:
         optype_string = "UNKNOWN";
     };
@@ -214,7 +247,10 @@ constexpr auto verbose_info = [](const zportal::Operation* operation, const io_u
 
     const int result = cqe->res;
 
-    std::cout << operation_string(operation->type) << ":\t";
+    if (operation->type == zportal::OperationType::MONITOR_REFRESH && result == -ETIME)
+        return;
+
+    std::cout << "\r" << operation_string(operation->type) << ":\t";
     switch (operation->type) {
     case zportal::OperationType::TCP_RECV_HEADER:
     case zportal::OperationType::TCP_RECV: {
@@ -252,32 +288,26 @@ void zportal::Tunnel::handle_cqe(io_uring_cqe* cqe) {
     const int result = cqe->res;
     const OperationType type = operation->type;
 
-    if (result < 0)
-        std::cout << operation_string(type) << ": " << std::error_code{-result, std::system_category()}.message()
-                  << std::endl;
-
     verbose_info(operation, cqe);
 
     switch (type) {
     case zportal::OperationType::TCP_RECV_HEADER: {
         if (result < 0)
             tcp_recv_header();
-        else if (result == 0) {
-            std::cout << "PEER_RCV_HDR: peer closed" << std::endl;
+        else if (result == 0)
             *exited_ = true;
-        } else {
+        else {
             rx_current_processed += static_cast<std::size_t>(result);
+            rx_total += static_cast<std::uintmax_t>(result);
             if (rx_current_processed == sizeof(rx_header)) {
                 rx_current_processed = 0;
-                if (rx_header.magic != zportal::magic)
+                if (rx_header.magic != ::htobe32(zportal::magic))
                     throw std::runtime_error("connection desynchronized");
 
                 const std::uint32_t size = ::be32toh(rx_header.size);
-                if (size > rx.size()) {
-                    std::cout << "PEER_RCV_HDR: want to receive too big packet(" << size << "B), ignoring ..."
-                              << std::endl;
+                if (size > rx.size())
                     tcp_recv_header();
-                } else
+                else
                     tcp_recv();
             } else
                 tcp_recv_header();
@@ -286,18 +316,17 @@ void zportal::Tunnel::handle_cqe(io_uring_cqe* cqe) {
     case zportal::OperationType::TCP_RECV: {
         if (result < 0)
             tcp_recv();
-        else if (result == 0) {
-            std::cout << "PEER_RCV: peer closed" << std::endl;
+        else if (result == 0)
             *exited_ = true;
-        } else {
+        else {
             rx_current_processed += static_cast<std::size_t>(result);
+            rx_total += static_cast<std::uintmax_t>(result);
             if (rx_current_processed == ::be32toh(rx_header.size)) {
                 rx_current_processed = 0;
 
-                if (crc32c({rx.data(), ::be32toh(rx_header.size)}) != rx_header.crc) {
-                    std::cout << "PEER_RCV: CRC mismatch. Ignoring packet." << std::endl;
+                if (crc32c({rx.data(), ::be32toh(rx_header.size)}) != ::be32toh(rx_header.crc))
                     tcp_recv_header();
-                } else
+                else
                     tun_write();
             } else
                 tcp_recv();
@@ -312,13 +341,12 @@ void zportal::Tunnel::handle_cqe(io_uring_cqe* cqe) {
     case zportal::OperationType::TUN_READ: {
         if (result < 0)
             tun_read();
-        else if (result == 0) {
-            std::cout << "TUN_READ: interfce " << tun_->get_name() << " is closed" << std::endl;
+        else if (result == 0)
             *exited_ = true;
-        } else {
-            tx_header.magic = zportal::magic;
+        else {
+            tx_header.magic = ::htobe32(zportal::magic);
             tx_header.size = ::htobe32(static_cast<std::uint32_t>(result));
-            tx_header.crc = crc32c({tx.data(), ::be32toh(tx_header.size)});
+            tx_header.crc = ::htobe32(crc32c({tx.data(), ::be32toh(tx_header.size)}));
             tcp_send_header();
         }
     }; break;
@@ -327,6 +355,7 @@ void zportal::Tunnel::handle_cqe(io_uring_cqe* cqe) {
             tcp_send_header();
         else {
             tx_current_processed += static_cast<std::size_t>(result);
+            tx_total += static_cast<std::uintmax_t>(result);
             if (tx_current_processed == sizeof(tx_header)) {
                 tx_current_processed = 0;
                 tcp_send();
@@ -339,12 +368,25 @@ void zportal::Tunnel::handle_cqe(io_uring_cqe* cqe) {
             tcp_send();
         else {
             tx_current_processed += static_cast<std::size_t>(result);
+            tx_total += static_cast<std::uintmax_t>(result);
             if (tx_current_processed == ::be32toh(tx_header.size)) {
                 tx_current_processed = 0;
                 tun_read();
             } else
                 tcp_send();
         }
+    } break;
+
+    case zportal::OperationType::MONITOR_REFRESH: {
+        if (result == -ETIME) {
+            refresh_monitor();
+            wait_for_refresh();
+        } else if (result == -ECANCELED)
+            wait_for_refresh();
+        else if (result < 0)
+            wait_for_refresh();
+        else
+            wait_for_refresh();
     } break;
     };
 }

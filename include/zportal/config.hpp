@@ -13,6 +13,7 @@
 namespace zportal {
 
 extern std::atomic_bool verbose_mode;
+extern std::atomic_bool monitor_mode;
 
 struct Config {
 
@@ -30,8 +31,6 @@ struct Config {
     std::chrono::seconds reconnect_duration{5};
     std::chrono::seconds connect_timeout{5};
     std::size_t error_threshold{10};
-
-    bool verbose_mode{};
 
     unsigned io_uring_entries{32};
 };
