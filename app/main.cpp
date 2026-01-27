@@ -2,7 +2,6 @@
 #include <iostream>
 #include <optional>
 #include <stdexcept>
-#include <system_error>
 #include <thread>
 #include <utility>
 
@@ -14,6 +13,7 @@
 #include <zportal/address.hpp>
 #include <zportal/config.hpp>
 #include <zportal/connection.hpp>
+#include <zportal/ring.hpp>
 #include <zportal/socket.hpp>
 #include <zportal/tun.hpp>
 #include <zportal/tunnel.hpp>
@@ -37,20 +37,14 @@ int main(int argn, char* argv[]) {
     tun.set_cidr(config.inner_address);
     tun.set_up();
 
-    io_uring ring{};
-    if (const int result = ::io_uring_queue_init(config.io_uring_entries, &ring, 0); result < 0)
-        throw std::system_error(-result, std::system_category(), "io_uring_queue_init");
+    zportal::IOUring ring(config.io_uring_entries);
 
-    constexpr auto handle_connection = [](io_uring& ring, zportal::Socket& sock, zportal::TUNInterface& interface) {
+    constexpr auto handle_connection = [](zportal::IOUring& ring, zportal::Socket& sock,
+                                          zportal::TUNInterface& interface) {
         bool exited = false;
-        zportal::Tunnel tunnel(&ring, std::move(sock), &interface, &exited);
+        zportal::Tunnel tunnel(ring, std::move(sock), &interface, &exited);
         while (!exited) {
-            io_uring_cqe* cqe = nullptr;
-            if (const int result = ::io_uring_wait_cqe(&ring, &cqe); result < 0)
-                throw std::system_error(-result, std::system_category(), "io_uring_wait_cqe");
-
-            if (!cqe)
-                throw std::runtime_error("cqe is null");
+            io_uring_cqe* cqe = ring.get_cqe();
 
             auto* operation = reinterpret_cast<zportal::Operation*>(::io_uring_cqe_get_data(cqe));
             if (operation == nullptr)
@@ -59,7 +53,7 @@ int main(int argn, char* argv[]) {
             tunnel.handle_cqe(cqe);
 
             delete operation;
-            ::io_uring_cqe_seen(&ring, cqe);
+            ring.seen(cqe);
         }
     };
 
@@ -109,8 +103,6 @@ int main(int argn, char* argv[]) {
             }
         }
     }
-
-    ::io_uring_queue_exit(&ring);
 
     return EXIT_SUCCESS;
 }

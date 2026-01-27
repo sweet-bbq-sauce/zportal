@@ -6,6 +6,7 @@
 
 #include <liburing.h>
 
+#include "ring.hpp"
 #include "socket.hpp"
 #include "tun.hpp"
 
@@ -40,7 +41,7 @@ struct Operation {
 
 class Tunnel {
   public:
-    explicit Tunnel(io_uring* ring, Socket&& tcp, const TUNInterface* tun, bool* exited);
+    explicit Tunnel(IOUring& ring, Socket&& tcp, const TUNInterface* tun, bool* exited);
 
     Tunnel(Tunnel&&) noexcept;
     Tunnel& operator=(Tunnel&&) noexcept;
@@ -71,7 +72,7 @@ class Tunnel {
   private:
     Socket tcp_;
     const TUNInterface* tun_{};
-    io_uring* ring_{};
+    IOUring* ring_;
     bool* exited_{};
 
     Header rx_header{}, tx_header{};

@@ -1,3 +1,4 @@
+#include "zportal/ring.hpp"
 #include <atomic>
 #include <cerrno>
 #include <iostream>
@@ -20,8 +21,8 @@
 #include <zportal/tun.hpp>
 #include <zportal/tunnel.hpp>
 
-zportal::Tunnel::Tunnel(io_uring* ring, Socket&& tcp, const TUNInterface* tun, bool* exited)
-    : ring_(ring), tcp_(std::move(tcp)), tun_(tun), exited_(exited) {
+zportal::Tunnel::Tunnel(zportal::IOUring& ring, Socket&& tcp, const TUNInterface* tun, bool* exited)
+    : ring_(&ring), tcp_(std::move(tcp)), tun_(tun), exited_(exited) {
     if (!ring)
         throw std::invalid_argument("ring is null");
 
@@ -75,51 +76,36 @@ void zportal::Tunnel::close() noexcept {
     tcp_.close();
 }
 
-static const auto get_sqe = [](io_uring* ring) {
-    auto* sqe = ::io_uring_get_sqe(ring);
-    if (!sqe)
-        throw std::runtime_error("SQE is null");
-
-    return sqe;
-};
-
-static const auto sqe_submit = [](io_uring* ring) {
-    if (const int result = ::io_uring_submit(ring); result < 0)
-        throw std::runtime_error(std::error_code{-result, std::system_category()}.message());
-};
-
 void zportal::Tunnel::tcp_recv_header() {
-    auto* sqe = get_sqe(ring_);
+    auto* sqe = ring_->get_sqe();
     auto* operation = new Operation{};
 
     void* ptr = reinterpret_cast<std::byte*>(&rx_header) + rx_current_processed;
     const std::size_t size = sizeof(rx_header) - rx_current_processed;
     ::io_uring_prep_recv(sqe, tcp_.get_fd(), ptr, size, 0);
 
-    operation->ring = ring_;
     operation->type = OperationType::TCP_RECV_HEADER;
     ::io_uring_sqe_set_data(sqe, operation);
 
-    sqe_submit(ring_);
+    ring_->submit();
 }
 
 void zportal::Tunnel::tcp_recv() {
-    auto* sqe = get_sqe(ring_);
+    auto* sqe = ring_->get_sqe();
     auto* operation = new Operation{};
 
     void* ptr = rx.data() + rx_current_processed;
     const std::size_t size = static_cast<std::size_t>(::be32toh(rx_header.size)) - rx_current_processed;
     ::io_uring_prep_recv(sqe, tcp_.get_fd(), ptr, size, 0);
 
-    operation->ring = ring_;
     operation->type = OperationType::TCP_RECV;
     ::io_uring_sqe_set_data(sqe, operation);
 
-    sqe_submit(ring_);
+    ring_->submit();
 }
 
 void zportal::Tunnel::tun_write() {
-    auto* sqe = get_sqe(ring_);
+    auto* sqe = ring_->get_sqe();
     auto* operation = new Operation{};
 
     if (!tun_)
@@ -127,15 +113,14 @@ void zportal::Tunnel::tun_write() {
 
     ::io_uring_prep_write(sqe, tun_->get_fd(), rx.data(), ::be32toh(rx_header.size), -1);
 
-    operation->ring = ring_;
     operation->type = OperationType::TUN_WRITE;
     ::io_uring_sqe_set_data(sqe, operation);
 
-    sqe_submit(ring_);
+    ring_->submit();
 }
 
 void zportal::Tunnel::tun_read() {
-    auto* sqe = get_sqe(ring_);
+    auto* sqe = ring_->get_sqe();
     auto* operation = new Operation{};
 
     if (!tun_)
@@ -143,56 +128,52 @@ void zportal::Tunnel::tun_read() {
 
     ::io_uring_prep_read(sqe, tun_->get_fd(), tx.data(), tx.size(), -1);
 
-    operation->ring = ring_;
     operation->type = OperationType::TUN_READ;
     ::io_uring_sqe_set_data(sqe, operation);
 
-    sqe_submit(ring_);
+    ring_->submit();
 }
 
 void zportal::Tunnel::tcp_send_header() {
-    auto* sqe = get_sqe(ring_);
+    auto* sqe = ring_->get_sqe();
     auto* operation = new Operation{};
 
     const void* ptr = reinterpret_cast<std::byte*>(&tx_header) + tx_current_processed;
     const std::size_t size = sizeof(tx_header) - tx_current_processed;
     ::io_uring_prep_send(sqe, tcp_.get_fd(), ptr, size, 0);
 
-    operation->ring = ring_;
     operation->type = OperationType::TCP_SEND_HEADER;
     ::io_uring_sqe_set_data(sqe, operation);
 
-    sqe_submit(ring_);
+    ring_->submit();
 }
 
 void zportal::Tunnel::tcp_send() {
-    auto* sqe = get_sqe(ring_);
+    auto* sqe = ring_->get_sqe();
     auto* operation = new Operation{};
 
     const void* ptr = tx.data() + tx_current_processed;
     const std::size_t size = static_cast<std::size_t>(::be32toh(tx_header.size)) - tx_current_processed;
     ::io_uring_prep_send(sqe, tcp_.get_fd(), ptr, size, 0);
 
-    operation->ring = ring_;
     operation->type = OperationType::TCP_SEND;
     ::io_uring_sqe_set_data(sqe, operation);
 
-    sqe_submit(ring_);
+    ring_->submit();
 }
 
 void zportal::Tunnel::wait_for_refresh() {
-    auto* sqe = get_sqe(ring_);
+    auto* sqe = ring_->get_sqe();
     auto* operation = new Operation{};
 
     __kernel_timespec ts{};
     ts.tv_sec = 1;
     ::io_uring_prep_timeout(sqe, &ts, 0, 0);
 
-    operation->ring = ring_;
     operation->type = OperationType::MONITOR_REFRESH;
     ::io_uring_sqe_set_data(sqe, operation);
 
-    sqe_submit(ring_);
+    ring_->submit();
 }
 
 void zportal::Tunnel::refresh_monitor() {
