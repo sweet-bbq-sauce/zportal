@@ -40,10 +40,6 @@ zportal::Tunnel::Tunnel(zportal::IOUring& ring, Socket&& tcp, const TUNInterface
     if (flags < 0)
         throw std::system_error(errno, std::system_category(), "fcntl F_GETFL");
 
-    if (!(flags & O_NONBLOCK))
-        if (::fcntl(tcp_.get_fd(), F_SETFL, flags | O_NONBLOCK) < 0)
-            throw std::system_error(errno, std::system_category(), "fcntl F_SETFL");
-
     rx.resize(tun->get_mtu());
     tx.resize(tun->get_mtu());
 
