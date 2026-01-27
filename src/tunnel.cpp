@@ -1,4 +1,3 @@
-#include "zportal/ring.hpp"
 #include <atomic>
 #include <cerrno>
 #include <iostream>
@@ -11,12 +10,14 @@
 
 #include <endian.h>
 #include <fcntl.h>
-#include <liburing.h>
 #include <linux/time_types.h>
 #include <unistd.h>
 
+#include <liburing.h>
+
 #include <zportal/config.hpp>
 #include <zportal/crc.hpp>
+#include <zportal/ring.hpp>
 #include <zportal/socket.hpp>
 #include <zportal/tun.hpp>
 #include <zportal/tunnel.hpp>
