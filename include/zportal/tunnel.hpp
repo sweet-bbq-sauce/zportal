@@ -36,7 +36,6 @@ enum class OperationType {
 
 struct Operation {
     OperationType type;
-    io_uring* ring;
 };
 
 class Tunnel {
