@@ -2,7 +2,7 @@
 
 #include <gtest/gtest.h>
 
-#include <zportal/socket.hpp>
+#include <zportal/net/socket.hpp>
 
 using namespace zportal;
 
