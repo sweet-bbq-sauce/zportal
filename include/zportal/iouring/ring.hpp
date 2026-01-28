@@ -25,7 +25,7 @@ class IOUring {
     [[nodiscard]] io_uring release() noexcept;
 
     [[nodiscard]] io_uring_sqe* get_sqe();
-    [[nodiscard]] io_uring_cqe* get_cqe();
+    [[nodiscard]] io_uring_cqe wait_cqe();
 
     void seen(io_uring_cqe* cqe);
     void submit();

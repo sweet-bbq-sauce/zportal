@@ -1,10 +1,12 @@
+#include <cerrno>
+#include <liburing/io_uring.h>
 #include <stdexcept>
 #include <system_error>
 #include <utility>
 
 #include <liburing.h>
 
-#include <zportal/tools/uring.hpp>
+#include <zportal/iouring/ring.hpp>
 
 zportal::IOUring::IOUring(unsigned entries) {
     if (const int result = ::io_uring_queue_init(entries, &ring_, 0); result < 0)
@@ -61,25 +63,34 @@ io_uring_sqe* zportal::IOUring::get_sqe() {
     if (!is_valid())
         throw std::logic_error("ring is closed");
 
-    io_uring_sqe* sqe = ::io_uring_get_sqe(&ring_);
-    if (!sqe)
-        throw std::runtime_error("SQE is null");
+    if (io_uring_sqe* sqe = ::io_uring_get_sqe(&ring_))
+        return sqe;
 
-    return sqe;
+    throw std::runtime_error("no free SQE available");
 }
 
-io_uring_cqe* zportal::IOUring::get_cqe() {
+io_uring_cqe zportal::IOUring::wait_cqe() {
     if (!is_valid())
         throw std::logic_error("ring is closed");
 
     io_uring_cqe* cqe = nullptr;
-    if (const int result = ::io_uring_wait_cqe(&ring_, &cqe); result < 0)
-        throw std::system_error(-result, std::system_category(), "io_uring_wait_cqe");
+    for (;;) {
+        const int result = ::io_uring_wait_cqe(&ring_, &cqe);
+        if (result == -EINTR)
+            continue;
+        else if (result < 0)
+            throw std::system_error(-result, std::generic_category(), "io_uring_wait_cqe");
+
+        break;
+    }
 
     if (!cqe)
-        throw std::runtime_error("CQE is null");
+        throw std::runtime_error("io_uring_wait_cqe returned null CQE");
 
-    return cqe;
+    io_uring_cqe copy = *cqe;
+    ::io_uring_cqe_seen(&ring_, cqe);
+
+    return copy;
 }
 
 void zportal::IOUring::seen(io_uring_cqe* cqe) {
