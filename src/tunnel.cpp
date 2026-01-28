@@ -74,6 +74,8 @@ void zportal::Tunnel::close() noexcept {
 }
 
 void zportal::Tunnel::tcp_recv_header() {
+    ensure_();
+
     auto* sqe = ring_->get_sqe();
     auto* operation = new Operation{};
 
@@ -88,6 +90,8 @@ void zportal::Tunnel::tcp_recv_header() {
 }
 
 void zportal::Tunnel::tcp_recv() {
+    ensure_();
+
     auto* sqe = ring_->get_sqe();
     auto* operation = new Operation{};
 
@@ -102,11 +106,10 @@ void zportal::Tunnel::tcp_recv() {
 }
 
 void zportal::Tunnel::tun_write() {
+    ensure_();
+
     auto* sqe = ring_->get_sqe();
     auto* operation = new Operation{};
-
-    if (!tun_)
-        throw std::logic_error("TUN interface is null");
 
     ::io_uring_prep_write(sqe, tun_->get_fd(), rx.data(), ::be32toh(rx_header.size), -1);
 
@@ -117,11 +120,10 @@ void zportal::Tunnel::tun_write() {
 }
 
 void zportal::Tunnel::tun_read() {
+    ensure_();
+
     auto* sqe = ring_->get_sqe();
     auto* operation = new Operation{};
-
-    if (!tun_)
-        throw std::logic_error("TUN interface is null");
 
     ::io_uring_prep_read(sqe, tun_->get_fd(), tx.data(), tx.size(), -1);
 
@@ -132,6 +134,8 @@ void zportal::Tunnel::tun_read() {
 }
 
 void zportal::Tunnel::tcp_send_header() {
+    ensure_();
+
     auto* sqe = ring_->get_sqe();
     auto* operation = new Operation{};
 
@@ -146,6 +150,8 @@ void zportal::Tunnel::tcp_send_header() {
 }
 
 void zportal::Tunnel::tcp_send() {
+    ensure_();
+
     auto* sqe = ring_->get_sqe();
     auto* operation = new Operation{};
 
@@ -160,6 +166,9 @@ void zportal::Tunnel::tcp_send() {
 }
 
 void zportal::Tunnel::wait_for_refresh() {
+    if (!monitor_mode.load(std::memory_order_relaxed))
+        return;
+
     auto* sqe = ring_->get_sqe();
     auto* operation = new Operation{};
 
@@ -174,9 +183,6 @@ void zportal::Tunnel::wait_for_refresh() {
 }
 
 void zportal::Tunnel::refresh_monitor() {
-    if (!monitor_mode.load(std::memory_order_relaxed))
-        return;
-
     std::ostringstream oss;
     oss << "\r\x1b[2K" << "RX: " << rx_total << " B | TX: " << tx_total << " B";
     const std::string line = oss.str();
@@ -356,15 +362,17 @@ void zportal::Tunnel::handle_cqe(io_uring_cqe* cqe) {
     } break;
 
     case zportal::OperationType::MONITOR_REFRESH: {
-        if (result == -ETIME) {
+        if (result == -ETIME)
             refresh_monitor();
-            wait_for_refresh();
-        } else if (result == -ECANCELED)
-            wait_for_refresh();
-        else if (result < 0)
-            wait_for_refresh();
-        else
+        if (monitor_mode.load(std::memory_order_relaxed))
             wait_for_refresh();
     } break;
     };
+}
+
+void zportal::Tunnel::ensure_() const {
+    if (!tun_)
+        throw std::logic_error("TUN interface is not valid");
+    if (!tcp_)
+        throw std::logic_error("Socket is not valid");
 }
