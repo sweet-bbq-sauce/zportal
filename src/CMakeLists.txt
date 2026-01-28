@@ -1,20 +1,8 @@
 include(GNUInstallDirs)
 
-set(SOURCES
-
-    # Address
-    "${CMAKE_CURRENT_SOURCE_DIR}/address/address.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/address/cidr.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/address/parse.cpp"
-
-    "${CMAKE_CURRENT_SOURCE_DIR}/config.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/connection.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/crc.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/ring.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/socket.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/tun.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/tunnel.cpp"
-)
+add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/net")
+add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/tools")
+add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/tunnel")
 
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(LIBURING REQUIRED IMPORTED_TARGET liburing)

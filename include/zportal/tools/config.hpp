@@ -8,7 +8,7 @@
 
 #include <cstdint>
 
-#include "address.hpp"
+#include <zportal/net/address.hpp>
 
 namespace zportal {
 

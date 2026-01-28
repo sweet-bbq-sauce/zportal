@@ -7,7 +7,7 @@
 
 #include <netinet/in.h>
 
-#include "address.hpp"
+#include <zportal/net/address.hpp>
 
 namespace zportal {
 

@@ -2,8 +2,8 @@
 
 #include <vector>
 
-#include "address.hpp"
-#include "socket.hpp"
+#include <zportal/net/address.hpp>
+#include <zportal/net/socket.hpp>
 
 namespace zportal {
 

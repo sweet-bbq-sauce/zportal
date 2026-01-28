@@ -6,7 +6,7 @@
 #include <netinet/in.h>
 #include <sys/socket.h>
 
-#include <zportal/address.hpp>
+#include <zportal/net/address.hpp>
 
 zportal::Cidr::Cidr(zportal::SockAddress address, std::uint8_t prefix) : address_(address), prefix_(prefix) {
     if (address.family() == AF_INET) {

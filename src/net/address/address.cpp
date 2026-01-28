@@ -19,7 +19,7 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 
-#include <zportal/address.hpp>
+#include <zportal/net/address.hpp>
 
 constexpr auto is_binary = [](std::span<const char> data) noexcept {
     for (const auto c : data) {

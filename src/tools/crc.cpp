@@ -7,7 +7,7 @@
 #    include <cpuid.h>
 #endif
 
-#include <zportal/crc.hpp>
+#include <zportal/tools/crc.hpp>
 
 bool zportal::is_sse4_supported() noexcept {
 #if defined(__x86_64__) || defined(__i386__)

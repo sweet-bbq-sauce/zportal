@@ -1,4 +1,3 @@
-#include "zportal/address.hpp"
 #include <system_error>
 #include <utility>
 
@@ -7,7 +6,8 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
-#include <zportal/socket.hpp>
+#include <zportal/net/address.hpp>
+#include <zportal/net/socket.hpp>
 
 zportal::Socket::Socket(Socket&& other) noexcept
     : fd_(std::exchange(other.fd_, -1)), family_(std::exchange(other.family_, AF_UNSPEC)) {}

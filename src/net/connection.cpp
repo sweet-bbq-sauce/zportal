@@ -1,7 +1,4 @@
 #include <array>
-#include <cstdint>
-#include <cstring>
-#include <netinet/in.h>
 #include <span>
 #include <stdexcept>
 #include <string>
@@ -9,13 +6,16 @@
 #include <variant>
 
 #include <cerrno>
+#include <cstdint>
+#include <cstring>
 
 #include <netdb.h>
+#include <netinet/in.h>
 #include <sys/socket.h>
 
-#include <zportal/address.hpp>
-#include <zportal/connection.hpp>
-#include <zportal/socket.hpp>
+#include <zportal/net/address.hpp>
+#include <zportal/net/connection.hpp>
+#include <zportal/net/socket.hpp>
 
 static const auto resolve = [](const zportal::Address& address) -> zportal::SockAddress {
     if (std::holds_alternative<zportal::SockAddress>(address))

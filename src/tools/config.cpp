@@ -8,7 +8,7 @@
 
 #include <unistd.h>
 
-#include <zportal/config.hpp>
+#include <zportal/tools/config.hpp>
 
 std::atomic_bool zportal::verbose_mode{false};
 std::atomic_bool zportal::monitor_mode{false};
