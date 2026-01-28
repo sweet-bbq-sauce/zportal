@@ -20,7 +20,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-#include <zportal/tun.hpp>
+#include <zportal/net/tun.hpp>
 
 zportal::TUNInterface::TUNInterface(const std::string& name) : name_(name) {
     fd_ = ::open("/dev/net/tun", O_RDWR);

@@ -1,6 +1,5 @@
 #include <exception>
 #include <iostream>
-#include <optional>
 #include <stdexcept>
 #include <thread>
 #include <utility>
@@ -10,13 +9,13 @@
 
 #include <liburing.h>
 
-#include <zportal/address.hpp>
-#include <zportal/config.hpp>
-#include <zportal/connection.hpp>
-#include <zportal/ring.hpp>
-#include <zportal/socket.hpp>
-#include <zportal/tun.hpp>
-#include <zportal/tunnel.hpp>
+#include <zportal/net/address.hpp>
+#include <zportal/net/connection.hpp>
+#include <zportal/net/ring.hpp>
+#include <zportal/net/socket.hpp>
+#include <zportal/net/tun.hpp>
+#include <zportal/tools/config.hpp>
+#include <zportal/tunnel/tunnel.hpp>
 
 std::sig_atomic_t running = 1;
 

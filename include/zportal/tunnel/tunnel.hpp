@@ -6,9 +6,9 @@
 
 #include <liburing.h>
 
-#include "ring.hpp"
-#include "socket.hpp"
-#include "tun.hpp"
+#include <zportal/net/ring.hpp>
+#include <zportal/net/socket.hpp>
+#include <zportal/net/tun.hpp>
 
 namespace zportal {
 

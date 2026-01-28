@@ -1,11 +1,11 @@
 #include <limits>
 #include <regex>
-#include <string>
 #include <stdexcept>
+#include <string>
 
 #include <cstdint>
 
-#include <zportal/address.hpp>
+#include <zportal/net/address.hpp>
 
 zportal::Address zportal::parse_address(const std::string& address) {
     static const std::regex re_unix(R"(^unix:(.+)$)");

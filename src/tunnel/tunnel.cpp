@@ -1,12 +1,11 @@
 #include <atomic>
-#include <cerrno>
 #include <iostream>
 #include <sstream>
 #include <stdexcept>
 #include <string>
-#include <system_error>
 #include <utility>
-#include <vector>
+
+#include <cerrno>
 
 #include <endian.h>
 #include <fcntl.h>
@@ -15,12 +14,12 @@
 
 #include <liburing.h>
 
-#include <zportal/config.hpp>
-#include <zportal/crc.hpp>
-#include <zportal/ring.hpp>
-#include <zportal/socket.hpp>
-#include <zportal/tun.hpp>
-#include <zportal/tunnel.hpp>
+#include <zportal/net/ring.hpp>
+#include <zportal/net/socket.hpp>
+#include <zportal/net/tun.hpp>
+#include <zportal/tools/config.hpp>
+#include <zportal/tools/crc.hpp>
+#include <zportal/tunnel/tunnel.hpp>
 
 zportal::Tunnel::Tunnel(zportal::IOUring& ring, Socket&& tcp, const TUNInterface* tun, bool* exited)
     : ring_(&ring), tcp_(std::move(tcp)), tun_(tun), exited_(exited) {

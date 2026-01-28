@@ -4,7 +4,7 @@
 
 #include <liburing.h>
 
-#include <zportal/ring.hpp>
+#include <zportal/net/ring.hpp>
 
 zportal::IOUring::IOUring(unsigned entries) {
     if (const int result = ::io_uring_queue_init(entries, &ring_, 0); result < 0)
