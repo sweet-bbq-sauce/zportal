@@ -2,7 +2,7 @@
 
 #include <gtest/gtest.h>
 
-#include <zportal/crc.hpp>
+#include <zportal/tools/crc.hpp>
 
 using namespace zportal;
 

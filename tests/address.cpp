@@ -7,7 +7,7 @@
 
 #include <gtest/gtest.h>
 
-#include <zportal/address.hpp>
+#include <zportal/net/address.hpp>
 
 using namespace zportal;
 
