@@ -36,10 +36,6 @@ zportal::Tunnel::Tunnel(zportal::IOUring& ring, Socket&& tcp, const TUNInterface
     if (!*tun_)
         throw std::invalid_argument("invalid TUN interface");
 
-    const int flags = ::fcntl(tcp_.get_fd(), F_GETFL, 0);
-    if (flags < 0)
-        throw std::system_error(errno, std::system_category(), "fcntl F_GETFL");
-
     rx.resize(tun->get_mtu());
     tx.resize(tun->get_mtu());
 
