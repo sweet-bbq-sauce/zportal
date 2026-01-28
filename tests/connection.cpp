@@ -34,7 +34,7 @@ TEST(Connection, BindAndConnect) {
     sockaddr_storage binded_address{};
     socklen_t len = sizeof(binded_address);
 
-    ASSERT_EQ(::getsockname(listener.get_fd(), reinterpret_cast<sockaddr*>(&binded_address), &len), 0)
+    ASSERT_EQ(::getsockname(listener.get(), reinterpret_cast<sockaddr*>(&binded_address), &len), 0)
         << std::error_code{errno, std::system_category()}.message();
 
     SockAddress connect_address = SockAddress::from_sockaddr(reinterpret_cast<sockaddr*>(&binded_address), len);

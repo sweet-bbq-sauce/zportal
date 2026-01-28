@@ -54,7 +54,7 @@ static const auto socket_recv = [](zportal::Socket& socket, std::span<std::uint8
 
     std::size_t processed{};
     while (processed < data.size()) {
-        const ssize_t n = ::recv(socket.get_fd(), data.data() + processed, data.size() - processed, 0);
+        const ssize_t n = ::recv(socket.get(), data.data() + processed, data.size() - processed, 0);
         if (n == 0) {
             socket.close();
             throw std::runtime_error("peer closed connection");
@@ -83,7 +83,7 @@ static const auto socket_send = [](zportal::Socket& socket, std::span<const std:
 
     std::size_t processed{};
     while (processed < data.size()) {
-        const ssize_t n = ::send(socket.get_fd(), data.data() + processed, data.size() - processed, MSG_NOSIGNAL);
+        const ssize_t n = ::send(socket.get(), data.data() + processed, data.size() - processed, MSG_NOSIGNAL);
         if (n == 0) {
             socket.close();
             throw std::runtime_error("send() returned 0");
@@ -112,7 +112,7 @@ zportal::Socket zportal::connect_to(const Address& target, const std::vector<Add
         throw std::invalid_argument("address is not connectable");
 
     Socket sock = Socket::create_socket(address.family());
-    if (::connect(sock.get_fd(), address.get(), address.length()) != 0)
+    if (::connect(sock.get(), address.get(), address.length()) != 0)
         throw std::system_error(errno, std::system_category(), "connect");
 
     if (proxies.empty())
@@ -210,13 +210,13 @@ zportal::Socket zportal::create_listener(const Address& address) {
     Socket sock = Socket::create_socket(resolved.family());
 
     const int yes = 1;
-    if (::setsockopt(sock.get_fd(), SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) != 0)
+    if (::setsockopt(sock.get(), SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) != 0)
         throw std::system_error(errno, std::system_category(), "setsockopt");
 
-    if (::bind(sock.get_fd(), resolved.get(), resolved.length()) != 0)
+    if (::bind(sock.get(), resolved.get(), resolved.length()) != 0)
         throw std::system_error(errno, std::system_category(), "bind");
 
-    if (::listen(sock.get_fd(), 1) != 0)
+    if (::listen(sock.get(), 1) != 0)
         throw std::system_error(errno, std::system_category(), "listen");
 
     return sock;
@@ -229,10 +229,9 @@ zportal::Socket zportal::accept_from(const Socket& listener) {
     sockaddr_storage addr{};
     socklen_t len = sizeof(addr);
 
-    const int clientfd =
-        ::accept4(listener.get_fd(), reinterpret_cast<sockaddr*>(&addr), &len, SOCK_NONBLOCK | SOCK_CLOEXEC);
+    const int clientfd = ::accept4(listener.get(), reinterpret_cast<sockaddr*>(&addr), &len, SOCK_CLOEXEC);
     if (clientfd < 0)
         throw std::system_error(errno, std::system_category(), "accept");
 
-    return Socket(clientfd, listener.get_family());
+    return Socket(clientfd);
 }
