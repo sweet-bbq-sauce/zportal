@@ -93,6 +93,16 @@ void zportal::IOUring::seen(io_uring_cqe* cqe) {
 }
 
 void zportal::IOUring::submit() {
+    if (!is_valid())
+        throw std::logic_error("ring is closed");
+
     if (const int result = ::io_uring_submit(&ring_); result < 0)
         throw std::system_error(-result, std::system_category(), "io_uring_submit");
+}
+
+unsigned zportal::IOUring::get_sq_entries() const {
+    if (!is_valid())
+        throw std::logic_error("ring is closed");
+
+    return ring_.sq.ring_entries;
 }
