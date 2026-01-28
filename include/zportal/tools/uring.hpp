@@ -17,18 +17,20 @@ class IOUring {
     ~IOUring() noexcept;
     void close() noexcept;
 
-    io_uring* get() noexcept;
+    [[nodiscard]] io_uring* get() noexcept;
 
-    bool is_valid() const noexcept;
-    explicit operator bool() const noexcept;
+    [[nodiscard]] bool is_valid() const noexcept;
+    [[nodiscard]] explicit operator bool() const noexcept;
 
-    io_uring release() noexcept;
+    [[nodiscard]] io_uring release() noexcept;
 
-    io_uring_sqe* get_sqe();
-    io_uring_cqe* get_cqe();
+    [[nodiscard]] io_uring_sqe* get_sqe();
+    [[nodiscard]] io_uring_cqe* get_cqe();
 
     void seen(io_uring_cqe* cqe);
     void submit();
+
+    [[nodiscard]] unsigned get_sq_entries() const;
 
   private:
     io_uring ring_{};
