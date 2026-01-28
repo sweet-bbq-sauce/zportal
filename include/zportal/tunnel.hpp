@@ -70,6 +70,8 @@ class Tunnel {
     void handle_cqe(io_uring_cqe* cqe);
 
   private:
+    void ensure_() const;
+
     Socket tcp_;
     const TUNInterface* tun_{};
     IOUring* ring_;
