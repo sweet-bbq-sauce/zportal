@@ -4,11 +4,12 @@
 
 #include <cerrno>
 
+#include <sys/socket.h>
+
 #include <gtest/gtest.h>
 
-#include <sys/socket.h>
-#include <zportal/address.hpp>
-#include <zportal/connection.hpp>
+#include <zportal/net/address.hpp>
+#include <zportal/net/connection.hpp>
 
 using namespace zportal;
 
