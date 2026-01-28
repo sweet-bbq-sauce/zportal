@@ -2,7 +2,6 @@ include(GNUInstallDirs)
 
 add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/net")
 add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/tools")
-add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/tunnel")
 
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(LIBURING REQUIRED IMPORTED_TARGET liburing)
