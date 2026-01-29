@@ -2,6 +2,7 @@
 
 #include <liburing.h>
 
+#include <liburing/io_uring.h>
 #include <zportal/iouring/cqe.hpp>
 
 std::uint64_t zportal::Cqe::get_data64() const noexcept {
@@ -30,4 +31,10 @@ bool zportal::Cqe::ok() const noexcept {
 
 int zportal::Cqe::error() const noexcept {
     return res_ < 0 ? -res_ : 0;
+}
+
+std::optional<std::uint16_t> zportal::Cqe::get_buffer_id() const noexcept {
+    if (flags_ & IORING_CQE_F_BUFFER)
+        return static_cast<std::uint16_t>(flags_ >> IORING_CQE_BUFFER_SHIFT);
+    return std::nullopt;
 }
