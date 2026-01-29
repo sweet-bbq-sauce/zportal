@@ -17,8 +17,8 @@ class Cqe {
     std::int32_t get_result() const noexcept;
     std::uint32_t get_flags() const noexcept;
 
-    bool ok() const noexcept;
-    int error() const noexcept;
+    [[nodiscard]] bool ok() const noexcept;
+    [[nodiscard]] int error() const noexcept;
 
   private:
     explicit Cqe(std::uint64_t user_data, std::int32_t res, std::uint32_t flags) noexcept;
