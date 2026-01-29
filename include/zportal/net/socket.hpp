@@ -10,7 +10,7 @@ namespace zportal {
 class Socket {
   public:
     Socket() noexcept = default;
-    explicit Socket(int fd);
+    explicit Socket(int fd, sa_family_t family = AF_UNSPEC);
 
     Socket(Socket&&) noexcept;
     Socket& operator=(Socket&&) noexcept;
@@ -33,8 +33,11 @@ class Socket {
 
     [[nodiscard]] static Socket create_socket(sa_family_t family, int flags = 0);
 
+    sa_family_t detect_family() const;
+
   private:
     FileDescriptor fd_;
+    mutable sa_family_t family_{AF_UNSPEC};
 };
 
 } // namespace zportal
