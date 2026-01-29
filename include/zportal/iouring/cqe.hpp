@@ -1,0 +1,32 @@
+#pragma once
+
+#include <cstdint>
+
+#include <liburing.h>
+
+#include <zportal/iouring/ring.hpp>
+
+namespace zportal {
+
+class Cqe {
+  public:
+    friend class IOUring;
+    std::uint64_t get_data64() const noexcept;
+    void* get_data() const noexcept;
+
+    std::int32_t get_result() const noexcept;
+    std::uint32_t get_flags() const noexcept;
+
+    bool ok() const noexcept;
+    int error() const noexcept;
+
+  private:
+    explicit Cqe(std::uint64_t user_data, std::int32_t res, std::uint32_t flags) noexcept;
+    explicit Cqe(const io_uring_cqe& cqe) noexcept;
+
+    std::uint64_t user_data_;
+    std::int32_t res_;
+    std::uint32_t flags_;
+};
+
+} // namespace zportal

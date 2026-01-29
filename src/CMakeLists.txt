@@ -1,6 +1,7 @@
 include(GNUInstallDirs)
 
 add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/net")
+add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/iouring")
 add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/tools")
 
 find_package(PkgConfig REQUIRED)
