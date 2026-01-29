@@ -4,6 +4,8 @@
 
 namespace zportal {
 
+class Cqe;
+
 class IOUring {
   public:
     explicit IOUring(unsigned entries);
@@ -25,15 +27,17 @@ class IOUring {
     [[nodiscard]] io_uring release() noexcept;
 
     [[nodiscard]] io_uring_sqe* get_sqe();
-    [[nodiscard]] io_uring_cqe wait_cqe();
+    [[nodiscard]] Cqe wait_cqe();
 
-    void seen(io_uring_cqe* cqe);
     void submit();
 
     [[nodiscard]] unsigned get_sq_entries() const;
 
   private:
+    void seen_(io_uring_cqe* cqe);
+
     io_uring ring_{};
+    static inline const io_uring invalid_ring{.ring_fd = -1};
 };
 
 } // namespace zportal
