@@ -1,5 +1,7 @@
 #pragma once
 
+#include <optional>
+
 #include <cstdint>
 
 #include <liburing.h>
@@ -19,6 +21,8 @@ class Cqe {
 
     [[nodiscard]] bool ok() const noexcept;
     [[nodiscard]] int error() const noexcept;
+
+    [[nodiscard]] std::optional<std::uint16_t> get_buffer_id() const noexcept;
 
   private:
     explicit Cqe(std::uint64_t user_data, std::int32_t res, std::uint32_t flags) noexcept;
