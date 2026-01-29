@@ -3,7 +3,6 @@
 #include <cstdint>
 
 #include <liburing.h>
-#include <liburing/io_uring.h>
 
 namespace zportal {
 
@@ -42,7 +41,7 @@ class IOUring {
     io_uring ring_{};
     io_uring_params params_{};
     static inline const io_uring invalid_ring{.ring_fd = -1};
-    static inline const io_uring_params invalid_params{};
+    static inline const io_uring_params empty_params{};
 };
 
 } // namespace zportal

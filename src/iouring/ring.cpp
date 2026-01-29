@@ -16,7 +16,7 @@ zportal::IOUring::IOUring(std::uint32_t entries) {
 }
 
 zportal::IOUring::IOUring(IOUring&& other) noexcept
-    : ring_(std::exchange(other.ring_, invalid_ring)), params_(std::exchange(other.params_, invalid_params)) {}
+    : ring_(std::exchange(other.ring_, invalid_ring)), params_(std::exchange(other.params_, empty_params)) {}
 
 zportal::IOUring& zportal::IOUring::operator=(IOUring&& other) noexcept {
     if (&other == this)
@@ -24,7 +24,7 @@ zportal::IOUring& zportal::IOUring::operator=(IOUring&& other) noexcept {
 
     close();
     ring_ = std::exchange(other.ring_, invalid_ring);
-    params_ = std::exchange(other.params_, invalid_params);
+    params_ = std::exchange(other.params_, empty_params);
 
     return *this;
 }
@@ -39,7 +39,7 @@ void zportal::IOUring::close() noexcept {
 
     ::io_uring_queue_exit(&ring_);
     ring_ = invalid_ring;
-    params_ = invalid_params;
+    params_ = empty_params;
 }
 
 io_uring* zportal::IOUring::get() noexcept {
