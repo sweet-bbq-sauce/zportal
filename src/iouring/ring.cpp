@@ -3,18 +3,20 @@
 #include <utility>
 
 #include <cerrno>
+#include <cstdint>
 
 #include <liburing.h>
 
 #include <zportal/iouring/cqe.hpp>
 #include <zportal/iouring/ring.hpp>
 
-zportal::IOUring::IOUring(unsigned entries) {
-    if (const int result = ::io_uring_queue_init(entries, &ring_, 0); result < 0)
+zportal::IOUring::IOUring(std::uint32_t entries) {
+    if (const int result = ::io_uring_queue_init_params(entries, &ring_, &params_); result < 0)
         throw std::system_error(-result, std::generic_category(), "io_uring_queue_init");
 }
 
-zportal::IOUring::IOUring(IOUring&& other) noexcept : ring_(std::exchange(other.ring_, invalid_ring)) {}
+zportal::IOUring::IOUring(IOUring&& other) noexcept
+    : ring_(std::exchange(other.ring_, invalid_ring)), params_(std::exchange(other.params_, invalid_params)) {}
 
 zportal::IOUring& zportal::IOUring::operator=(IOUring&& other) noexcept {
     if (&other == this)
@@ -22,6 +24,7 @@ zportal::IOUring& zportal::IOUring::operator=(IOUring&& other) noexcept {
 
     close();
     ring_ = std::exchange(other.ring_, invalid_ring);
+    params_ = std::exchange(other.params_, invalid_params);
 
     return *this;
 }
@@ -36,6 +39,7 @@ void zportal::IOUring::close() noexcept {
 
     ::io_uring_queue_exit(&ring_);
     ring_ = invalid_ring;
+    params_ = invalid_params;
 }
 
 io_uring* zportal::IOUring::get() noexcept {
@@ -48,11 +52,6 @@ bool zportal::IOUring::is_valid() const noexcept {
 
 zportal::IOUring::operator bool() const noexcept {
     return is_valid();
-}
-
-io_uring zportal::IOUring::release() noexcept {
-    io_uring tmp = std::exchange(ring_, invalid_ring);
-    return tmp;
 }
 
 io_uring_sqe* zportal::IOUring::get_sqe() {
@@ -104,9 +103,23 @@ void zportal::IOUring::submit() {
         throw std::system_error(-result, std::generic_category(), "io_uring_submit");
 }
 
-unsigned zportal::IOUring::get_sq_entries() const {
+std::uint32_t zportal::IOUring::get_sq_entries() const {
     if (!is_valid())
         throw std::logic_error("ring is closed");
 
-    return ring_.sq.ring_entries;
+    return params_.sq_entries;
+}
+
+std::uint32_t zportal::IOUring::get_cq_entries() const {
+    if (!is_valid())
+        throw std::logic_error("ring is closed");
+
+    return params_.cq_entries;
+}
+
+std::uint32_t zportal::IOUring::get_flags() const {
+    if (!is_valid())
+        throw std::logic_error("ring is closed");
+
+    return params_.flags;
 }
