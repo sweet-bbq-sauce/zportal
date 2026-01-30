@@ -328,7 +328,7 @@ TEST(ParseAddressString, ToIP4) {
     EXPECT_EQ(to_string(addr, false), ip_short);
 }
 
-TEST(ParseAddressString, ToUnixIP6) {
+TEST(ParseAddressString, ToIP6) {
     const std::string ip = "[::1]:23456";
     const std::string ip_short = "::1";
     Address addr;
