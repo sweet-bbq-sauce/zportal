@@ -104,22 +104,13 @@ void zportal::IOUring::submit() {
 }
 
 std::uint32_t zportal::IOUring::get_sq_entries() const {
-    if (!is_valid())
-        throw std::logic_error("ring is closed");
-
     return params_.sq_entries;
 }
 
 std::uint32_t zportal::IOUring::get_cq_entries() const {
-    if (!is_valid())
-        throw std::logic_error("ring is closed");
-
     return params_.cq_entries;
 }
 
 std::uint32_t zportal::IOUring::get_flags() const {
-    if (!is_valid())
-        throw std::logic_error("ring is closed");
-
     return params_.flags;
 }

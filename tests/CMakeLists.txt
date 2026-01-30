@@ -5,6 +5,7 @@ set(TESTS
     "${CMAKE_CURRENT_SOURCE_DIR}/connection.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/crc.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/file_descriptor.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/ring.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/socket.cpp"
 )
 
