@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <cstring>
 
 #include <liburing.h>
 
@@ -45,7 +46,12 @@ void zportal::BufferRing::close() noexcept {
     flush_returns();
 
     if (ring_ && br_) {
-        ::io_uring_free_buf_ring(ring_->get(), br_, count_, bgid_);
+#if HAVE_IO_URING_SETUP_BUF_RING
+        (void)::io_uring_free_buf_ring(ring_->get(), br_, count_, bgid_);
+#else
+        (void)::io_uring_unregister_buf_ring(ring_->get(), bgid_);
+        std::free(br_);
+#endif
         br_ = nullptr;
     }
 
@@ -128,7 +134,7 @@ std::byte* zportal::BufferRing::buffer_ptr(std::uint16_t bid) const noexcept {
 }
 
 zportal::BufferRing::BufferRing(IOUring& ring, std::uint16_t bgid, std::uint16_t count, std::uint32_t size,
-                                  std::uint16_t threshold)
+                                std::uint16_t threshold)
     : ring_(&ring), bgid_(bgid), br_(nullptr), count_(count), size_(size), threshold_(threshold), mask_(0) {
 
     if (!std::has_single_bit(count_) || count_ < 2)
@@ -142,25 +148,56 @@ zportal::BufferRing::BufferRing(IOUring& ring, std::uint16_t bgid, std::uint16_t
     mask_ = count_ - 1;
 
     void* new_mem{};
-    if (::posix_memalign(&new_mem, 4096, std::size_t(count_) * std::size_t(size_)) != 0)
-        throw std::system_error(errno, std::system_category(), "posix_memalign");
+    if (const int result = ::posix_memalign(&new_mem, 4096, std::size_t(count_) * std::size_t(size_)); result != 0)
+        throw std::system_error(result, std::system_category(), "posix_memalign");
     data_ = static_cast<std::byte*>(new_mem);
 
+#if HAVE_IO_URING_SETUP_BUF_RING
     int err{};
     br_ = ::io_uring_setup_buf_ring(ring_->get(), count_, bgid_, 0, &err);
     if (!br_) {
         std::free(data_);
         data_ = nullptr;
 
-        if (err == 0) {
-            if (errno)
-                err = errno;
-            else
-                err = EIO;
-        } else
+        if (err == 0)
+            err = EIO;
+        else
             err = err > 0 ? err : -err;
         throw std::system_error(err, std::system_category(), "io_uring_setup_buf_ring");
     }
+#else
+    const std::size_t ring_bytes_raw = std::size_t(count_) * sizeof(io_uring_buf);
+    const std::size_t ring_bytes = (ring_bytes_raw + 4095) & ~std::size_t(4095);
+
+    void* ring_mem{};
+    if (const int result = ::posix_memalign(&ring_mem, 4096, ring_bytes); result != 0) {
+        std::free(data_);
+        data_ = nullptr;
+        throw std::system_error(result, std::system_category(), "posix_memalign");
+    }
+
+    br_ = reinterpret_cast<io_uring_buf_ring*>(ring_mem);
+#    if HAVE_IO_URING_BUF_RING_INIT
+    ::io_uring_buf_ring_init(br_);
+#    else
+    std::memset(br_, 0, ring_bytes);
+#    endif
+
+    io_uring_buf_reg reg{};
+    reg.ring_addr = reinterpret_cast<unsigned long>(br_);
+    reg.ring_entries = count_;
+    reg.bgid = bgid_;
+
+    if (const int result = ::io_uring_register_buf_ring(ring_->get(), &reg, 0); result < 0) {
+        std::free(br_);
+        br_ = nullptr;
+
+        std::free(data_);
+        data_ = nullptr;
+
+        throw std::system_error(-result, std::system_category(), "io_uring_register_buf_ring");
+    }
+#endif
 
     for (std::uint16_t i = 0; i < count_; i++)
         ::io_uring_buf_ring_add(br_, data_ + std::size_t(i) * std::size_t(size_), size_, i, mask_, 0);
