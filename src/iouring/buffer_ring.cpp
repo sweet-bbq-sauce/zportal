@@ -12,6 +12,7 @@
 
 #include <zportal/iouring/buffer_ring.hpp>
 #include <zportal/iouring/ring.hpp>
+#include <zportal/tools/debug.hpp>
 
 zportal::BufferRing::BufferRing(BufferRing&& other) noexcept
     : ring_(std::exchange(other.ring_, nullptr)), br_(std::exchange(other.br_, nullptr)),
@@ -47,9 +48,11 @@ void zportal::BufferRing::close() noexcept {
 
     if (ring_ && br_) {
 #if HAVE_IO_URING_SETUP_BUF_RING
-        (void)::io_uring_free_buf_ring(ring_->get(), br_, count_, bgid_);
+        if (const int result = ::io_uring_free_buf_ring(ring_->get(), br_, count_, bgid_); result < 0)
+            DEBUG_ERRNO(-result, "io_uring_free_buf_ring");
 #else
-        (void)::io_uring_unregister_buf_ring(ring_->get(), bgid_);
+        if (const int result = ::io_uring_unregister_buf_ring(ring_->get(), bgid_); result < 0)
+            DEBUG_ERRNO(-result, "io_uring_unregister_buf_ring");
         std::free(br_);
 #endif
         br_ = nullptr;

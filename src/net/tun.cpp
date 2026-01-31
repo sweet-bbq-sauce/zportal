@@ -21,6 +21,7 @@
 #include <unistd.h>
 
 #include <zportal/net/tun.hpp>
+#include <zportal/tools/debug.hpp>
 
 zportal::TUNInterface::TUNInterface(const std::string& name) : name_(name) {
     fd_ = ::open("/dev/net/tun", O_RDWR);
@@ -105,7 +106,9 @@ void zportal::TUNInterface::close() noexcept {
     if (fd_ < 0)
         return;
 
-    ::close(fd_);
+    if (::close(fd_) != 0)
+        DEBUG_ERRNO(errno, "close");
+
     fd_ = -1;
 }
 
