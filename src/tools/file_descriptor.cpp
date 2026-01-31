@@ -1,7 +1,10 @@
 #include <utility>
 
+#include <cerrno>
+
 #include <unistd.h>
 
+#include <zportal/tools/debug.hpp>
 #include <zportal/tools/file_descriptor.hpp>
 
 zportal::FileDescriptor::FileDescriptor(int fd) noexcept : fd_(fd) {}
@@ -26,7 +29,8 @@ void zportal::FileDescriptor::reset(int fd) noexcept {
     if (fd == fd_)
         return;
     if (is_valid())
-        ::close(fd_);
+        if (::close(fd_) != 0)
+            DEBUG_ERRNO(errno, "close");
     fd_ = fd;
 }
 
