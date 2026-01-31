@@ -1,4 +1,5 @@
 include(GNUInstallDirs)
+include(CheckSymbolExists)
 
 add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/net")
 add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/iouring")
@@ -38,3 +39,21 @@ install(DIRECTORY "${PROJECT_SOURCE_DIR}/include/zportal"
     DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
     FILES_MATCHING PATTERN "*.hpp"
 )
+
+set(CMAKE_REQUIRED_INCLUDES ${LIBURING_INCLUDE_DIRS})
+set(CMAKE_REQUIRED_LIBRARIES ${LIBURING_LIBRARIES})
+
+check_symbol_exists(io_uring_setup_buf_ring "liburing.h" HAVE_IO_URING_SETUP_BUF_RING)
+check_symbol_exists(io_uring_buf_ring_init "liburing.h" HAVE_IO_URING_BUF_RING_INIT)
+
+if(HAVE_IO_URING_SETUP_BUF_RING)
+    target_compile_definitions(zportal PRIVATE HAVE_IO_URING_SETUP_BUF_RING=1)
+else()
+    target_compile_definitions(zportal PRIVATE HAVE_IO_URING_SETUP_BUF_RING=0)
+endif()
+
+if(HAVE_IO_URING_BUF_RING_INIT)
+    target_compile_definitions(zportal PRIVATE HAVE_IO_URING_BUF_RING_INIT=1)
+else()
+    target_compile_definitions(zportal PRIVATE HAVE_IO_URING_BUF_RING_INIT=0)
+endif()
