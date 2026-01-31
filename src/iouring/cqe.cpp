@@ -2,7 +2,6 @@
 
 #include <liburing.h>
 
-#include <liburing/io_uring.h>
 #include <zportal/iouring/cqe.hpp>
 
 std::uint64_t zportal::Cqe::get_data64() const noexcept {
