@@ -13,6 +13,7 @@ namespace zportal {
 class Cqe {
   public:
     friend class IOUring;
+    
     std::uint64_t get_data64() const noexcept;
     void* get_data() const noexcept;
 
