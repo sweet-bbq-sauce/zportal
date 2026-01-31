@@ -1,5 +1,4 @@
 #include <bit>
-#include <new>
 #include <stdexcept>
 #include <system_error>
 #include <utility>
@@ -10,46 +9,42 @@
 
 #include <liburing.h>
 
-#include <zportal/iouring/buffer_group.hpp>
+#include <zportal/iouring/buffer_ring.hpp>
 #include <zportal/iouring/ring.hpp>
 
-zportal::BufferGroup::BufferGroup(BufferGroup&& other) noexcept
-    : ring_(std::exchange(other.ring_, nullptr)), bgid_(std::exchange(other.bgid_, 0)),
-      br_(std::exchange(other.br_, nullptr)), threshold_(std::exchange(other.threshold_, 0)),
+zportal::BufferRing::BufferRing(BufferRing&& other) noexcept
+    : ring_(std::exchange(other.ring_, nullptr)), br_(std::exchange(other.br_, nullptr)),
+      bgid_(std::exchange(other.bgid_, 0)), threshold_(std::exchange(other.threshold_, 0)),
       to_return_queue_(std::move(other.to_return_queue_)), data_(std::exchange(other.data_, nullptr)),
-      count_(std::exchange(other.count_, 0)), size_(std::exchange(other.size_, 0)),
+      size_(std::exchange(other.size_, 0)), count_(std::exchange(other.count_, 0)),
       mask_(std::exchange(other.mask_, 0)) {}
 
-zportal::BufferGroup& zportal::BufferGroup::operator=(BufferGroup&& other) noexcept {
+zportal::BufferRing& zportal::BufferRing::operator=(BufferRing&& other) noexcept {
     if (&other == this)
         return *this;
 
     close();
     ring_ = std::exchange(other.ring_, nullptr);
-    bgid_ = std::exchange(other.bgid_, 0);
     br_ = std::exchange(other.br_, nullptr);
+    bgid_ = std::exchange(other.bgid_, 0);
     threshold_ = std::exchange(other.threshold_, 0);
     to_return_queue_ = std::move(other.to_return_queue_);
     data_ = std::exchange(other.data_, nullptr);
-    count_ = std::exchange(other.count_, 0);
     size_ = std::exchange(other.size_, 0);
+    count_ = std::exchange(other.count_, 0);
     mask_ = std::exchange(other.mask_, 0);
 
     return *this;
 }
 
-zportal::BufferGroup::~BufferGroup() noexcept {
+zportal::BufferRing::~BufferRing() noexcept {
     close();
 }
 
-void zportal::BufferGroup::close() noexcept {
-    if (!ring_)
-        return;
+void zportal::BufferRing::close() noexcept {
+    flush_returns();
 
-    flush_return();
-
-    if (br_) {
-        ::io_uring_unregister_buf_ring(ring_->get(), bgid_);
+    if (ring_ && br_) {
         ::io_uring_free_buf_ring(ring_->get(), br_, count_, bgid_);
         br_ = nullptr;
     }
@@ -63,28 +58,28 @@ void zportal::BufferGroup::close() noexcept {
     bgid_ = 0;
     threshold_ = 0;
     to_return_queue_.clear();
-    count_ = 0;
     size_ = 0;
+    count_ = 0;
     mask_ = 0;
 }
 
-bool zportal::BufferGroup::is_valid() const noexcept {
+bool zportal::BufferRing::is_valid() const noexcept {
     return ring_ && br_ && data_ && count_ && size_;
 }
 
-zportal::BufferGroup::operator bool() const noexcept {
+zportal::BufferRing::operator bool() const noexcept {
     return is_valid();
 }
 
-std::uint16_t zportal::BufferGroup::get_bgid() const noexcept {
+std::uint16_t zportal::BufferRing::get_bgid() const noexcept {
     return bgid_;
 }
 
-std::uint16_t zportal::BufferGroup::get_count() const noexcept {
+std::uint16_t zportal::BufferRing::get_count() const noexcept {
     return count_;
 }
 
-void zportal::BufferGroup::return_buffer(std::uint16_t bid) noexcept {
+void zportal::BufferRing::return_buffer(std::uint16_t bid) noexcept {
     if (!is_valid())
         return;
     if (!is_bid_valid(bid))
@@ -95,13 +90,13 @@ void zportal::BufferGroup::return_buffer(std::uint16_t bid) noexcept {
         ::io_uring_buf_ring_advance(br_, 1);
     } else {
         if (to_return_queue_.size() >= threshold_)
-            flush_return();
+            flush_returns();
 
         to_return_queue_.push_back(bid);
     }
 }
 
-void zportal::BufferGroup::flush_return() noexcept {
+void zportal::BufferRing::flush_returns() noexcept {
     if (!is_valid() || to_return_queue_.empty())
         return;
 
@@ -113,27 +108,30 @@ void zportal::BufferGroup::flush_return() noexcept {
         ::io_uring_buf_ring_add(br_, buffer_ptr(bid), size_, bid, mask_, 0);
         to_commit++;
     }
-    ::io_uring_buf_ring_advance(br_, to_commit);
+
+    if (to_commit > 0)
+        ::io_uring_buf_ring_advance(br_, to_commit);
+
     to_return_queue_.clear();
 }
 
-bool zportal::BufferGroup::is_bid_valid(std::uint16_t bid) const noexcept {
+bool zportal::BufferRing::is_bid_valid(std::uint16_t bid) const noexcept {
     return bid < count_;
 }
 
-std::size_t zportal::BufferGroup::buffers_size() const noexcept {
+std::size_t zportal::BufferRing::buffers_size() const noexcept {
     return std::size_t(count_) * std::size_t(size_);
 }
 
-std::byte* zportal::BufferGroup::buffer_ptr(std::uint16_t bid) const noexcept {
+std::byte* zportal::BufferRing::buffer_ptr(std::uint16_t bid) const noexcept {
     return is_valid() && is_bid_valid(bid) ? data_ + std::size_t(size_) * std::size_t(bid) : nullptr;
 }
 
-zportal::BufferGroup::BufferGroup(IOUring& ring, std::uint16_t bgid, std::uint16_t count, std::uint32_t size,
+zportal::BufferRing::BufferRing(IOUring& ring, std::uint16_t bgid, std::uint16_t count, std::uint32_t size,
                                   std::uint16_t threshold)
     : ring_(&ring), bgid_(bgid), br_(nullptr), count_(count), size_(size), threshold_(threshold), mask_(0) {
 
-    if (std::popcount(count_) != 1 || count_ < 2)
+    if (!std::has_single_bit(count_) || count_ < 2)
         throw std::invalid_argument("count must be power of 2 and >= 2");
     if (size_ == 0)
         throw std::invalid_argument("size must be > 0");
@@ -143,29 +141,29 @@ zportal::BufferGroup::BufferGroup(IOUring& ring, std::uint16_t bgid, std::uint16
 
     mask_ = count_ - 1;
 
-    if (::posix_memalign(reinterpret_cast<void**>(&data_), 4096, std::size_t(count_) * std::size_t(size_)) != 0)
-        throw std::bad_alloc();
+    void* new_mem{};
+    if (::posix_memalign(&new_mem, 4096, std::size_t(count_) * std::size_t(size_)) != 0)
+        throw std::system_error(errno, std::system_category(), "posix_memalign");
+    data_ = static_cast<std::byte*>(new_mem);
 
     int err{};
     br_ = ::io_uring_setup_buf_ring(ring_->get(), count_, bgid_, 0, &err);
     if (!br_) {
         std::free(data_);
         data_ = nullptr;
-        throw std::system_error(err, std::generic_category(), "io_uring_setup_buf_ring");
-    }
 
-    io_uring_buf_reg reg{};
-    reg.bgid = bgid_;
-    if (const int result = ::io_uring_register_buf_ring(ring_->get(), &reg, 0); result < 0) {
-        ::io_uring_free_buf_ring(ring_->get(), br_, count_, bgid_);
-        br_ = nullptr;
-        std::free(data_);
-        data_ = nullptr;
-        throw std::system_error(-result, std::generic_category(), "io_uring_register_buf_ring");
+        if (err == 0) {
+            if (errno)
+                err = errno;
+            else
+                err = EIO;
+        } else
+            err = err > 0 ? err : -err;
+        throw std::system_error(err, std::system_category(), "io_uring_setup_buf_ring");
     }
 
     for (std::uint16_t i = 0; i < count_; i++)
-        ::io_uring_buf_ring_add(br_, buffer_ptr(i), size_, i, mask_, 0);
+        ::io_uring_buf_ring_add(br_, data_ + std::size_t(i) * std::size_t(size_), size_, i, mask_, 0);
 
     ::io_uring_buf_ring_advance(br_, count_);
 }
