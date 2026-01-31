@@ -4,8 +4,8 @@
 
 #include <gtest/gtest.h>
 
-#include <zportal/iouring/ring.hpp>
 #include <zportal/iouring/cqe.hpp>
+#include <zportal/iouring/ring.hpp>
 
 using namespace zportal;
 
@@ -48,8 +48,5 @@ TEST(IOUring, NOPOperation) {
     ::io_uring_prep_nop(sqe);
     EXPECT_NO_THROW(ring.submit());
 
-    EXPECT_NO_THROW(
-        Cqe cqe = ring.wait_cqe();
-        EXPECT_EQ(cqe.get_data64(), user_data);
-    );
+    EXPECT_NO_THROW(Cqe cqe = ring.wait_cqe(); EXPECT_EQ(cqe.get_data64(), user_data););
 }
