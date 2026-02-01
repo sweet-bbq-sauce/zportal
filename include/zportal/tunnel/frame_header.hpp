@@ -8,7 +8,7 @@
 
 namespace zportal {
 
-class WireHeader {
+class FrameHeader {
   public:
     static constexpr std::uint32_t magic = 0x5A505254;
     static constexpr std::size_t wire_size = 16;
@@ -38,4 +38,4 @@ class WireHeader {
 
 } // namespace zportal
 
-#include "wire_header.inl"
+#include "frame_header.inl"
