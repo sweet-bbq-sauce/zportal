@@ -7,7 +7,7 @@
 
 #include <gtest/gtest.h>
 
-#include <zportal/tunnel/frame_header.hpp>
+#include <zportal/tunnel/frame/header.hpp>
 
 using namespace zportal;
 
