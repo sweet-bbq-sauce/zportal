@@ -17,7 +17,7 @@ class FrameHeader {
 
     std::uint32_t get_magic() const noexcept;
 
-    inline std::uint32_t get_flags() const noexcept;
+    std::uint32_t get_flags() const noexcept;
     void set_flags(std::uint32_t flags) noexcept;
 
     std::uint32_t get_size() const noexcept;
