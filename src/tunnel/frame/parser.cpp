@@ -20,6 +20,8 @@ zportal::FrameParser::FrameParser(BufferRing& br) : br_(&br), frame_(0) {
 }
 
 void zportal::FrameParser::push_buffer(std::uint16_t bid, std::size_t size) noexcept {
+    assert(bid < bid_refcount_.size());
+    
     input_queue_.push_back(Chunk{bid, 0, size});
 
     for (;;) {
@@ -76,8 +78,6 @@ void zportal::FrameParser::push_buffer(std::uint16_t bid, std::size_t size) noex
                 const std::byte* ptr = br_->buffer_ptr(c.bid) + c.offset;
                 frame_.segments_.push_back({c.bid, std::span<const std::byte>(ptr, take)});
 
-                if (c.bid >= bid_refcount_.size())
-                    bid_refcount_.resize(static_cast<std::size_t>(c.bid) + 1, 0);
                 ++bid_refcount_[c.bid];
 
                 c.offset += take;
