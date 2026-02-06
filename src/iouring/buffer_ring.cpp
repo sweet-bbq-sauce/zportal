@@ -114,7 +114,7 @@ void zportal::BufferRing::flush_returns() noexcept {
         if (!is_bid_valid(bid))
             continue;
 
-        ::io_uring_buf_ring_add(br_, buffer_ptr(bid), size_, bid, mask_, 0);
+        ::io_uring_buf_ring_add(br_, buffer_ptr(bid), size_, bid, mask_, to_commit);
         to_commit++;
     }
 
@@ -203,7 +203,7 @@ zportal::BufferRing::BufferRing(IOUring& ring, std::uint16_t bgid, std::uint16_t
 #endif
 
     for (std::uint16_t i = 0; i < count_; i++)
-        ::io_uring_buf_ring_add(br_, data_ + std::size_t(i) * std::size_t(size_), size_, i, mask_, 0);
+        ::io_uring_buf_ring_add(br_, data_ + std::size_t(i) * std::size_t(size_), size_, i, mask_, i);
 
     ::io_uring_buf_ring_advance(br_, count_);
 }
