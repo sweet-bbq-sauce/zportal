@@ -28,7 +28,7 @@ static constexpr auto prepare_header = [](std::span<const std::uint8_t> payload)
     return hdr;
 };
 
-static constexpr auto build_and_send_frame(int fd, std::span<const std::uint8_t> payload) {
+static constexpr auto build_and_send_frame = [](int fd, std::span<const std::uint8_t> payload) {
     FrameHeader hdr = prepare_header(payload);
     std::vector<iovec> chunks;
     chunks.push_back({(void*)hdr.data().data(), hdr.wire_size});
@@ -37,7 +37,7 @@ static constexpr auto build_and_send_frame(int fd, std::span<const std::uint8_t>
     ssize_t n = ::writev(fd, chunks.data(), chunks.size());
     if (n < 0)
         GTEST_SKIP() << "writev: " << std::system_category().message(errno);
-}
+};
 
 static constexpr auto equals_iovec_payload = [](std::span<const iovec> chunks, std::span<const std::uint8_t> expected) {
     std::size_t offset = 0;
