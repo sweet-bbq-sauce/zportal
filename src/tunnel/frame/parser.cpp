@@ -15,13 +15,13 @@
 #include <zportal/tunnel/frame/header.hpp>
 #include <zportal/tunnel/frame/parser.hpp>
 
-zportal::FrameParser::FrameParser(BufferRing& br) : br_(&br), frame_(0) {
+zportal::FrameParser::FrameParser(BufferRing& br) : br_(&br) {
     bid_refcount_.resize(br_->get_count());
 }
 
 void zportal::FrameParser::push_buffer(std::uint16_t bid, std::size_t size) noexcept {
     assert(bid < bid_refcount_.size());
-    
+
     input_queue_.push_back(Chunk{bid, 0, size});
 
     for (;;) {
@@ -57,7 +57,6 @@ void zportal::FrameParser::push_buffer(std::uint16_t bid, std::size_t size) noex
             if (frame_size == 0 || frame_size > 1500)
                 std::terminate();
 
-            frame_ = Frame(next_frame_id_++);
             frame_.segments_.clear();
 
             state_ = READING_PAYLOAD;
@@ -96,7 +95,8 @@ void zportal::FrameParser::push_buffer(std::uint16_t bid, std::size_t size) noex
 
             assert(read_progress_ == whole);
 
-            ready_frames_.push_back(std::move(frame_));
+            ready_frames_.push_back(next_frame_id_);
+            frames_.emplace(next_frame_id_++, std::move(frame_));
 
             state_ = READING_HEADER;
             read_progress_ = 0;
@@ -108,17 +108,22 @@ void zportal::FrameParser::push_buffer(std::uint16_t bid, std::size_t size) noex
     }
 }
 
-std::optional<zportal::Frame> zportal::FrameParser::get_frame() noexcept {
+std::optional<std::uint64_t> zportal::FrameParser::get_frame() noexcept {
     if (ready_frames_.empty())
         return std::nullopt;
 
-    Frame out = std::move(ready_frames_.front());
+    std::uint64_t out = ready_frames_.front();
     ready_frames_.pop_front();
     return out;
 }
 
-void zportal::FrameParser::free_frame(Frame& frame) noexcept {
-    for (auto& seg : frame.segments_) {
+void zportal::FrameParser::free_frame(std::uint64_t fd) noexcept {
+    auto it = frames_.find(fd);
+    if (it == frames_.end())
+        return;
+
+    Frame& frame = it->second;
+    for (const auto& seg : frame.segments_) {
         const std::uint16_t bid = seg.first;
 
         if (bid >= bid_refcount_.size())
@@ -140,5 +145,21 @@ void zportal::FrameParser::free_frame(Frame& frame) noexcept {
         bid_to_return_.pop_front();
     }
 
-    frame.segments_.clear();
+    frames_.erase(it);
+}
+
+zportal::Frame* zportal::FrameParser::get_frame_by_fd(std::uint64_t fd) noexcept {
+    auto it = frames_.find(fd);
+    if (it == frames_.end())
+        return nullptr;
+
+    return &it->second;
+}
+
+const zportal::Frame* zportal::FrameParser::get_frame_by_fd(std::uint64_t fd) const noexcept {
+    auto it = frames_.find(fd);
+    if (it == frames_.end())
+        return nullptr;
+
+    return &it->second;
 }

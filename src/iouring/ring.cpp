@@ -9,6 +9,7 @@
 
 #include <zportal/iouring/cqe.hpp>
 #include <zportal/iouring/ring.hpp>
+#include <zportal/iouring/buffer_ring.hpp>
 
 zportal::IOUring::IOUring(std::uint32_t entries) {
     if (const int result = ::io_uring_queue_init_params(entries, &ring_, &params_); result < 0)
@@ -113,4 +114,8 @@ std::uint32_t zportal::IOUring::get_cq_entries() const {
 
 std::uint32_t zportal::IOUring::get_flags() const {
     return params_.flags;
+}
+
+zportal::BufferRing zportal::IOUring::create_buf_ring(std::uint16_t count, std::uint32_t size, std::uint16_t threshold ) {
+    return BufferRing(*this, next_bid_++, count, size, threshold);
 }

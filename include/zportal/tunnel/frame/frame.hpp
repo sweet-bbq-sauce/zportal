@@ -1,11 +1,13 @@
 #pragma once
 
 #include <span>
-#include <utility>
 #include <vector>
+#include <utility>
 
 #include <cstddef>
 #include <cstdint>
+
+#include <sys/uio.h>
 
 namespace zportal {
 
@@ -14,23 +16,18 @@ struct Segment {
     std::size_t offset, length;
 };
 
+struct InputDatagram {
+    std::vector<std::byte> data;
+};
+
 class FrameParser;
 class Frame {
   public:
     friend class FrameParser;
-    using SegmentTable = std::vector<std::pair<std::uint16_t, std::span<const std::byte>>>;
-
-    const SegmentTable& get_segments() const noexcept;
-    std::uint64_t get_fd() const noexcept;
-
-    bool is_valid() const noexcept;
-    explicit operator bool() const noexcept;
+    std::vector<iovec> get_segments() const;
 
   private:
-    explicit Frame(std::uint64_t frame_fd) noexcept;
-
-    SegmentTable segments_;
-    std::uint64_t frame_fd_;
+    std::vector<std::pair<std::uint16_t, std::span<const std::byte>>> segments_;
 };
 
 } // namespace zportal

@@ -27,7 +27,7 @@ inline std::uint32_t FrameHeader::get_flags() const noexcept {
     return get_u32_(4);
 }
 
-void FrameHeader::set_flags(std::uint32_t flags) noexcept {
+inline void FrameHeader::set_flags(std::uint32_t flags) noexcept {
     set_u32_(4, flags);
 }
 
