@@ -7,6 +7,7 @@
 namespace zportal {
 
 class Cqe;
+class BufferRing;
 
 class IOUring {
   public:
@@ -35,11 +36,16 @@ class IOUring {
     [[nodiscard]] std::uint32_t get_cq_entries() const;
     [[nodiscard]] std::uint32_t get_flags() const;
 
+    [[nodiscard]] BufferRing create_buf_ring(std::uint16_t count, std::uint32_t size, std::uint16_t threshold = 10);
+
   private:
     void seen_(io_uring_cqe* cqe);
 
     io_uring ring_{};
     io_uring_params params_{};
+
+    std::uint16_t next_bid_{};
+
     static inline const io_uring invalid_ring{.ring_fd = -1};
     static inline const io_uring_params empty_params{};
 };
