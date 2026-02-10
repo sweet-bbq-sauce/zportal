@@ -16,10 +16,6 @@ struct Segment {
     std::size_t offset, length;
 };
 
-struct InputDatagram {
-    std::vector<std::byte> data;
-};
-
 class FrameParser;
 class Frame {
   public:
