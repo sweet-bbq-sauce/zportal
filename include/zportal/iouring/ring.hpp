@@ -29,6 +29,7 @@ class IOUring {
 
     [[nodiscard]] io_uring_sqe* get_sqe();
     [[nodiscard]] Cqe wait_cqe();
+    [[nodiscard]] Cqe wait_cqe_timeout(const __kernel_timespec& ts);
 
     void submit();
 
