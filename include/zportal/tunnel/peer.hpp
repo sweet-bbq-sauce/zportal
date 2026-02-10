@@ -1,8 +1,8 @@
 #pragma once
 
-#include <deque>
+#include <vector>
 
-#include <netinet/in.h>
+#include <cstddef>
 
 #include <zportal/iouring/buffer_ring.hpp>
 #include <zportal/iouring/ring.hpp>
@@ -18,7 +18,7 @@ struct Peer {
     FrameParser parser;
 
     // TX
-    std::deque<InputDatagram> out_queue;
+    std::deque<std::vector<const std::byte>> out_queue;
     Socket socket;
 };
 
