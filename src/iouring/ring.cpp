@@ -7,9 +7,9 @@
 
 #include <liburing.h>
 
+#include <zportal/iouring/buffer_ring.hpp>
 #include <zportal/iouring/cqe.hpp>
 #include <zportal/iouring/ring.hpp>
-#include <zportal/iouring/buffer_ring.hpp>
 
 zportal::IOUring::IOUring(std::uint32_t entries) {
     if (const int result = ::io_uring_queue_init_params(entries, &ring_, &params_); result < 0)
@@ -86,6 +86,30 @@ zportal::Cqe zportal::IOUring::wait_cqe() {
     return copy;
 }
 
+zportal::Cqe zportal::IOUring::wait_cqe_timeout(const __kernel_timespec& ts) {
+    if (!is_valid())
+        throw std::logic_error("ring is closed");
+
+    io_uring_cqe* cqe = nullptr;
+    for (;;) {
+        const int result = ::io_uring_wait_cqe_timeout(&ring_, &cqe, const_cast<__kernel_timespec*>(&ts));
+        if (result == -EINTR)
+            continue;
+        else if (result < 0)
+            throw std::system_error(-result, std::generic_category(), "io_uring_wait_cqe");
+
+        break;
+    }
+
+    if (!cqe)
+        throw std::runtime_error("io_uring_wait_cqe returned null CQE");
+
+    Cqe copy(*cqe);
+    seen_(cqe);
+
+    return copy;
+}
+
 void zportal::IOUring::seen_(io_uring_cqe* cqe) {
     if (!is_valid())
         throw std::logic_error("ring is closed");
@@ -116,6 +140,7 @@ std::uint32_t zportal::IOUring::get_flags() const {
     return params_.flags;
 }
 
-zportal::BufferRing zportal::IOUring::create_buf_ring(std::uint16_t count, std::uint32_t size, std::uint16_t threshold ) {
+zportal::BufferRing zportal::IOUring::create_buf_ring(std::uint16_t count, std::uint32_t size,
+                                                      std::uint16_t threshold) {
     return BufferRing(*this, next_bid_++, count, size, threshold);
 }
