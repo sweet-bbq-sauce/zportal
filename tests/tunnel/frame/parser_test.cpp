@@ -100,7 +100,12 @@ TEST(FrameParser, ParseStream) {
     auto sqe = ring.get_sqe();
     ::io_uring_prep_recv_multishot(sqe, pair[0], nullptr, 0, 0);
     ::io_uring_sqe_set_flags(sqe, IOSQE_BUFFER_SELECT);
+#if HAVE_IO_URING_SQE_SET_BUF_GROUP
     ::io_uring_sqe_set_buf_group(sqe, buffer_ring.get_bgid());
+#else
+    sqe->buf_group = buffer_ring.get_bgid();
+#endif
+
     ring.submit();
 
     build_and_send_frame(pair[1], payload1);
