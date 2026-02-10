@@ -13,11 +13,15 @@
 #include <zportal/tools/probe.hpp>
 
 bool zportal::support_check::read_multishot() {
+#if HAVE_IORING_OP_READ_MULTISHOT
     std::unique_ptr<io_uring_probe, decltype(&io_uring_free_probe)> probe(io_uring_get_probe(), &io_uring_free_probe);
     if (!probe)
         throw std::system_error(ENOTSUP, std::generic_category(), "io_uring_get_probe");
 
     return ::io_uring_opcode_supported(probe.get(), IORING_OP_READ_MULTISHOT);
+#else
+    return false;
+#endif
 }
 
 bool zportal::support_check::recv_multishot() {
@@ -37,7 +41,7 @@ bool zportal::support_check::recv_multishot() {
 #if HAVE_IO_URING_SQE_SET_BUF_GROUP
     ::io_uring_sqe_set_buf_group(sqe, br.get_bgid());
 #else
-    sqe->buf_group = buffer_ring.get_bgid();
+    sqe->buf_group = br.get_bgid();
 #endif
     ring.submit();
 

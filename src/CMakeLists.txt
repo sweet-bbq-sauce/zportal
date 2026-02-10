@@ -1,5 +1,6 @@
 include(GNUInstallDirs)
 include(CheckSymbolExists)
+include(CheckCXXSourceCompiles)
 
 add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/net")
 add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/iouring")
@@ -64,4 +65,18 @@ if(HAVE_IO_URING_SQE_SET_BUF_GROUP)
     target_compile_definitions(zportal PRIVATE HAVE_IO_URING_SQE_SET_BUF_GROUP=1)
 else()
     target_compile_definitions(zportal PRIVATE HAVE_IO_URING_SQE_SET_BUF_GROUP=0)
+endif()
+
+check_cxx_source_compiles("
+    #include <liburing.h>
+    #include <linux/io_uring.h>
+
+    static_assert(IORING_OP_READ_MULTISHOT >= 0, \"\");
+    int main() { return 0; }
+" HAVE_IORING_OP_READ_MULTISHOT)
+
+if(HAVE_IORING_OP_READ_MULTISHOT)
+    target_compile_definitions(zportal PRIVATE HAVE_IORING_OP_READ_MULTISHOT=1)
+else()
+    target_compile_definitions(zportal PRIVATE HAVE_IORING_OP_READ_MULTISHOT=0)
 endif()
