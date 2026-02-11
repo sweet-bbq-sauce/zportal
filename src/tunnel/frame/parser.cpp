@@ -74,8 +74,9 @@ void zportal::FrameParser::push_buffer(std::uint16_t bid, std::size_t size) noex
                 const std::size_t need = whole - read_progress_;
                 const std::size_t take = std::min(need, c.length);
 
-                const std::byte* ptr = br_->buffer_ptr(c.bid) + c.offset;
-                frame_.segments_.push_back({c.bid, std::span<const std::byte>(ptr, take)});
+                std::byte* ptr = br_->buffer_ptr(c.bid) + c.offset;
+                frame_.bids_.push_back(c.bid);
+                frame_.segments_.push_back(iovec{.iov_base = ptr, .iov_len = take});
 
                 ++bid_refcount_[c.bid];
 
@@ -108,7 +109,7 @@ void zportal::FrameParser::push_buffer(std::uint16_t bid, std::size_t size) noex
     }
 }
 
-std::optional<std::uint64_t> zportal::FrameParser::get_frame() noexcept {
+std::optional<std::uint16_t> zportal::FrameParser::get_frame() noexcept {
     if (ready_frames_.empty())
         return std::nullopt;
 
@@ -117,14 +118,13 @@ std::optional<std::uint64_t> zportal::FrameParser::get_frame() noexcept {
     return out;
 }
 
-void zportal::FrameParser::free_frame(std::uint64_t fd) noexcept {
+void zportal::FrameParser::free_frame(std::uint16_t fd) noexcept {
     auto it = frames_.find(fd);
     if (it == frames_.end())
         return;
 
     Frame& frame = it->second;
-    for (const auto& seg : frame.segments_) {
-        const std::uint16_t bid = seg.first;
+    for (const std::uint16_t bid : frame.bids_) {
 
         if (bid >= bid_refcount_.size())
             continue;
@@ -148,7 +148,7 @@ void zportal::FrameParser::free_frame(std::uint64_t fd) noexcept {
     frames_.erase(it);
 }
 
-zportal::Frame* zportal::FrameParser::get_frame_by_fd(std::uint64_t fd) noexcept {
+zportal::Frame* zportal::FrameParser::get_frame_by_fd(std::uint16_t fd) noexcept {
     auto it = frames_.find(fd);
     if (it == frames_.end())
         return nullptr;
@@ -156,7 +156,7 @@ zportal::Frame* zportal::FrameParser::get_frame_by_fd(std::uint64_t fd) noexcept
     return &it->second;
 }
 
-const zportal::Frame* zportal::FrameParser::get_frame_by_fd(std::uint64_t fd) const noexcept {
+const zportal::Frame* zportal::FrameParser::get_frame_by_fd(std::uint16_t fd) const noexcept {
     auto it = frames_.find(fd);
     if (it == frames_.end())
         return nullptr;

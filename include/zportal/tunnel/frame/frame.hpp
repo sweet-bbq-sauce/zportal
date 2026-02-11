@@ -20,10 +20,11 @@ class FrameParser;
 class Frame {
   public:
     friend class FrameParser;
-    std::vector<iovec> get_segments() const;
+    const std::vector<iovec>& get_segments() const;
 
   private:
-    std::vector<std::pair<std::uint16_t, std::span<const std::byte>>> segments_;
+    std::vector<std::uint16_t> bids_;
+    std::vector<iovec> segments_;
 };
 
 } // namespace zportal
