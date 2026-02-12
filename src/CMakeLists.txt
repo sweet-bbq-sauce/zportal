@@ -48,6 +48,7 @@ set(CMAKE_REQUIRED_LIBRARIES ${LIBURING_LIBRARIES})
 check_symbol_exists(io_uring_setup_buf_ring "liburing.h" HAVE_IO_URING_SETUP_BUF_RING)
 check_symbol_exists(io_uring_buf_ring_init "liburing.h" HAVE_IO_URING_BUF_RING_INIT)
 check_symbol_exists(io_uring_sqe_set_buf_group "liburing.h" HAVE_IO_URING_SQE_SET_BUF_GROUP)
+check_symbol_exists(io_uring_prep_read_multishot "liburing.h" HAVE_IO_URING_PREP_READ_MULTISHOT)
 
 if(HAVE_IO_URING_SETUP_BUF_RING)
     target_compile_definitions(zportal PRIVATE HAVE_IO_URING_SETUP_BUF_RING=1)
@@ -65,6 +66,12 @@ if(HAVE_IO_URING_SQE_SET_BUF_GROUP)
     target_compile_definitions(zportal PRIVATE HAVE_IO_URING_SQE_SET_BUF_GROUP=1)
 else()
     target_compile_definitions(zportal PRIVATE HAVE_IO_URING_SQE_SET_BUF_GROUP=0)
+endif()
+
+if(HAVE_IO_URING_PREP_READ_MULTISHOT)
+    target_compile_definitions(zportal PRIVATE HAVE_IO_URING_PREP_READ_MULTISHOT=1)
+else()
+    target_compile_definitions(zportal PRIVATE HAVE_IO_URING_PREP_READ_MULTISHOT=0)
 endif()
 
 check_cxx_source_compiles("

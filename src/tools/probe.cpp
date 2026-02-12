@@ -1,4 +1,5 @@
 #include <memory>
+#include <optional>
 #include <system_error>
 
 #include <cerrno>
@@ -13,18 +14,28 @@
 #include <zportal/tools/probe.hpp>
 
 bool zportal::support_check::read_multishot() {
+    static std::optional<bool> cache{};
+    if (cache)
+        return *cache;
+
 #if HAVE_IORING_OP_READ_MULTISHOT
     std::unique_ptr<io_uring_probe, decltype(&io_uring_free_probe)> probe(io_uring_get_probe(), &io_uring_free_probe);
     if (!probe)
         throw std::system_error(ENOTSUP, std::generic_category(), "io_uring_get_probe");
 
-    return ::io_uring_opcode_supported(probe.get(), IORING_OP_READ_MULTISHOT);
+    cache = ::io_uring_opcode_supported(probe.get(), IORING_OP_READ_MULTISHOT);
 #else
-    return false;
+    cache = false;
 #endif
+
+    return *cache;
 }
 
 bool zportal::support_check::recv_multishot() {
+    static std::optional<bool> cache{};
+    if (cache)
+        return *cache;
+
     zportal::IOUring ring(1);
 
     // [0] is sender
@@ -38,11 +49,7 @@ bool zportal::support_check::recv_multishot() {
     auto sqe = ring.get_sqe();
     ::io_uring_prep_recv_multishot(sqe, socket[1].get(), nullptr, 0, MSG_DONTWAIT);
     ::io_uring_sqe_set_flags(sqe, IOSQE_BUFFER_SELECT);
-#if HAVE_IO_URING_SQE_SET_BUF_GROUP
-    ::io_uring_sqe_set_buf_group(sqe, br.get_bgid());
-#else
     sqe->buf_group = br.get_bgid();
-#endif
     ring.submit();
 
     ::send(socket[0].get(), ".", 1, 0);
@@ -51,10 +58,12 @@ bool zportal::support_check::recv_multishot() {
     const int result = cqe.get_result();
 
     if (result == -EINVAL || result == -EOPNOTSUPP || result == -ENOTSUP)
-        return false;
+        cache = false;
 
     if (result == -EAGAIN || result >= 0)
-        return true;
+        cache = true;
 
-    return false;
+    cache = false;
+
+    return *cache;
 }

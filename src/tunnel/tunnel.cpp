@@ -1,3 +1,4 @@
+#include "zportal/tools/probe.hpp"
 #include <atomic>
 #include <thread>
 #include <utility>
@@ -15,6 +16,7 @@
 #include <zportal/tunnel/frame/parser.hpp>
 #include <zportal/tunnel/operation.hpp>
 #include <zportal/tunnel/peer.hpp>
+#include <zportal/tunnel/submission.hpp>
 #include <zportal/tunnel/tunnel.hpp>
 
 zportal::Tunnel::Tunnel(IOUring&& ring, TUNInterface&& tun, Socket&& sock) noexcept
@@ -29,16 +31,12 @@ void zportal::Tunnel::loop_() {
     auto read_sqe = ring_.get_sqe();
     zportal::Operation read_op;
     read_op.set_type(Operation::Type::READ);
-    ::io_uring_prep_read_multishot(read_sqe, tun_.get_fd(), 0, -1, tun_br_.get_bgid());
-    ::io_uring_sqe_set_data64(read_sqe, read_op.serialize());
+    prepare_read(read_sqe, read_op, tun_.get_fd(), tun_br_.get_bgid());
 
     auto recv_sqe = ring_.get_sqe();
     zportal::Operation recv_op;
     recv_op.set_type(Operation::Type::RECV);
-    ::io_uring_prep_recv_multishot(recv_sqe, peer_.socket.get(), nullptr, 0, 0);
-    ::io_uring_sqe_set_flags(recv_sqe, IOSQE_BUFFER_SELECT);
-    ::io_uring_sqe_set_buf_group(recv_sqe, peer_.br.get_bgid());
-    ::io_uring_sqe_set_data64(recv_sqe, recv_op.serialize());
+    prepare_recv(recv_sqe, recv_op, peer_.socket.get(), peer_.br.get_bgid());
 
     ring_.submit();
 
@@ -57,6 +55,11 @@ void zportal::Tunnel::loop_() {
             if (result == 0) {
                 closing = true;
                 break;
+            }
+
+            if (!support_check::recv_multishot()) {
+                recv_sqe = ring_.get_sqe();
+                prepare_recv(recv_sqe, recv_op, peer_.socket.get(), peer_.br.get_bgid());
             }
 
             peer_.parser.push_buffer(*cqe.get_buffer_id(), static_cast<std::size_t>(result));
@@ -81,6 +84,12 @@ void zportal::Tunnel::loop_() {
             const std::byte* ptr = tun_br_.buffer_ptr(*cqe.get_buffer_id());
             std::vector<std::byte> buffer{ptr, ptr + static_cast<std::size_t>(result)};
             tun_br_.return_buffer(*cqe.get_buffer_id());
+
+            if (!support_check::read_multishot()) {
+                read_sqe = ring_.get_sqe();
+                prepare_read(read_sqe, read_op, tun_.get_fd(), tun_br_.get_bgid());
+            }
+
             peer_.out_queue.emplace_back(OutFrame{std::move(buffer)});
             kick_send_();
         } break;

@@ -10,6 +10,7 @@ SpacesInAngles: false
 PointerAlignment: Left
 AllowShortFunctionsOnASingleLine: Empty
 BreakBeforeBraces: Attach
-IndentPPDirectives: AfterHash
+IndentPPDirectives: BeforeHash
+PPIndentWidth: -1
 Cpp11BracedListStyle: true
 ReflowComments: true
