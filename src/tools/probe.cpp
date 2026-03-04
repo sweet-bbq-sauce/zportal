@@ -59,11 +59,10 @@ bool zportal::support_check::recv_multishot() {
 
     if (result == -EINVAL || result == -EOPNOTSUPP || result == -ENOTSUP)
         cache = false;
-
-    if (result == -EAGAIN || result >= 0)
+    else if (result == -EAGAIN || result >= 0)
         cache = true;
-
-    cache = false;
+    else
+        cache = false;
 
     return *cache;
 }

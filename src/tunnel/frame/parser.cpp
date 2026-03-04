@@ -57,7 +57,8 @@ void zportal::FrameParser::push_buffer(std::uint16_t bid, std::size_t size) noex
             if (frame_size == 0 || frame_size > 1500)
                 std::terminate();
 
-            frame_.segments_.clear();
+            // Ensure we start from a known-empty frame after previous move to `frames_`.
+            frame_ = Frame{};
 
             state_ = READING_PAYLOAD;
             read_progress_ = 0;

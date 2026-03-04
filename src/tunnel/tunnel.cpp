@@ -53,7 +53,7 @@ void zportal::Tunnel::loop_() {
         switch (op.get_type()) {
         case zportal::Operation::Type::RECV: {
             if (result == 0) {
-                closing = true;
+                running_.store(false, std::memory_order_release);
                 break;
             }
 
@@ -103,6 +103,9 @@ void zportal::Tunnel::loop_() {
         default:
             continue;
         }
+
+        if (!running_.load(std::memory_order_acquire))
+            break;
     }
 }
 
