@@ -1,6 +1,7 @@
-#include "zportal/iouring/ring.hpp"
+#include <exception>
 #include <iostream>
 
+#include <csignal>
 #include <cstdlib>
 
 #include <zportal/net/connection.hpp>
@@ -9,7 +10,16 @@
 #include <zportal/tools/config.hpp>
 #include <zportal/tunnel/tunnel.hpp>
 
+static zportal::Tunnel* tunnel_ptr = nullptr;
+
+extern "C" void on_interrupt(int) {
+    if (tunnel_ptr)
+        tunnel_ptr->stop();
+}
+
 int main(int argn, char* argv[]) {
+    std::signal(SIGINT, on_interrupt);
+
     zportal::Config cfg{};
     zportal::parse_arguments(cfg, argn, argv);
 
@@ -29,8 +39,14 @@ int main(int argn, char* argv[]) {
 
     zportal::IOUring ring(1024);
     zportal::Tunnel tunnel(std::move(ring), std::move(tun), std::move(sock));
+    tunnel_ptr = &tunnel;
 
-    tunnel.wait();
+    try {
+        tunnel.wait();
+    } catch (const std::exception& e) {
+        std::cout << e.what() << std::endl;
+    }
+    std::cout << "Exiting ..." << std::endl;
 
     return EXIT_SUCCESS;
 }

@@ -1,8 +1,7 @@
 #pragma once
 
-#include "zportal/iouring/buffer_ring.hpp"
 #include <atomic>
-#include <thread>
+#include <future>
 
 #include <zportal/iouring/ring.hpp>
 #include <zportal/net/socket.hpp>
@@ -15,13 +14,12 @@ class Tunnel {
   public:
     explicit Tunnel(IOUring&& ring, TUNInterface&& tun, Socket&& sock) noexcept;
 
-    void wait() {
-        if (jt_.joinable())
-            jt_.join();
-    }
+    void wait();
+    void stop() noexcept;
+    bool running() const noexcept;
 
   private:
-    std::jthread jt_;
+    std::future<void> thread_;
     std::atomic_bool running_{true};
 
     IOUring ring_;

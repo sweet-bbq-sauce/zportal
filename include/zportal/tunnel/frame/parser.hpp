@@ -22,8 +22,8 @@ class FrameParser {
 
     enum class ParserError { OK, WRONG_MAGIC, INVALID_SIZE, INTERNAL_ERROR };
 
-    ParserError push_buffer(std::uint16_t bid, std::size_t size);
-    std::optional<std::uint16_t> get_frame() noexcept;
+    [[nodiscard]] ParserError push_buffer(std::uint16_t bid, std::size_t size);
+    [[nodiscard]] std::optional<std::uint16_t> get_frame() noexcept;
     void free_frame(std::uint16_t frame) noexcept;
     Frame* get_frame_by_fd(std::uint16_t fd) noexcept;
     const Frame* get_frame_by_fd(std::uint16_t fd) const noexcept;
