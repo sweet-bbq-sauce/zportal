@@ -1,8 +1,8 @@
 #pragma once
 
 #include <deque>
-#include <unordered_map>
 #include <optional>
+#include <unordered_map>
 #include <vector>
 
 #include <cassert>
@@ -20,7 +20,9 @@ class FrameParser {
     using Chunk = Segment;
     explicit FrameParser(BufferRing& br);
 
-    void push_buffer(std::uint16_t bid, std::size_t size) noexcept;
+    enum class ParserError { OK, WRONG_MAGIC, INVALID_SIZE, INTERNAL_ERROR };
+
+    ParserError push_buffer(std::uint16_t bid, std::size_t size);
     std::optional<std::uint16_t> get_frame() noexcept;
     void free_frame(std::uint16_t frame) noexcept;
     Frame* get_frame_by_fd(std::uint16_t fd) noexcept;

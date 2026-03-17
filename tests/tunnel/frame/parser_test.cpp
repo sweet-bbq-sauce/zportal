@@ -28,8 +28,16 @@ static constexpr auto prepare_header = [](std::span<const std::uint8_t> payload)
     return hdr;
 };
 
-static constexpr auto build_and_send_frame = [](int fd, std::span<const std::uint8_t> payload) {
-    FrameHeader hdr = prepare_header(payload);
+static constexpr auto prepare_invalid_header = [](std::span<const std::uint8_t> payload) -> FrameHeader {
+    FrameHeader hdr;
+    hdr.clean();
+    std::uint32_t* magic = reinterpret_cast<std::uint32_t*>(hdr.data().data());
+    *magic = 0x12345678; // Invalid magic number.
+    hdr.set_size(payload.size());
+    return hdr;
+};
+
+static constexpr auto build_and_send_frame = [](int fd, const FrameHeader& hdr, std::span<const std::uint8_t> payload) {
     std::vector<iovec> chunks;
     chunks.push_back({(void*)hdr.data().data(), hdr.wire_size});
     chunks.push_back({(void*)payload.data(), payload.size()});
@@ -108,10 +116,10 @@ TEST(FrameParser, ParseStream) {
 
     ring.submit();
 
-    build_and_send_frame(pair[1], payload1);
-    build_and_send_frame(pair[1], payload2);
-    build_and_send_frame(pair[1], payload3);
-    build_and_send_frame(pair[1], payload4);
+    build_and_send_frame(pair[1], prepare_header(payload1), payload1);
+    build_and_send_frame(pair[1], prepare_header(payload2), payload2);
+    build_and_send_frame(pair[1], prepare_header(payload3), payload3);
+    build_and_send_frame(pair[1], prepare_header(payload4), payload4);
 
     ::shutdown(pair[1], SHUT_RDWR);
 
@@ -139,7 +147,7 @@ TEST(FrameParser, ParseStream) {
         if (!bid)
             break;
 
-        parser.push_buffer(*bid, cqe.get_result());
+        EXPECT_EQ(parser.push_buffer(*bid, cqe.get_result()), FrameParser::ParserError::OK);
         saw_payload = true;
         received_total += static_cast<std::size_t>(cqe.get_result());
 
@@ -183,4 +191,53 @@ TEST(FrameParser, ParseStream) {
     EXPECT_TRUE(equals_iovec_payload(parsed2->get_segments(), payload2));
     EXPECT_TRUE(equals_iovec_payload(parsed3->get_segments(), payload3));
     EXPECT_TRUE(equals_iovec_payload(parsed4->get_segments(), payload4));
+}
+
+TEST(FrameParser, ParseFrameWidthInvlidMagic) {
+    IOUring ring(16);
+    BufferRing buffer_ring = ring.create_buf_ring(256, 64);
+
+    FrameParser parser(buffer_ring);
+
+    int pair[2];
+    if (::socketpair(AF_UNIX, SOCK_STREAM, 0, pair) == -1)
+        GTEST_SKIP() << "socketpair: " << std::system_category().message(errno);
+
+    auto sqe = ring.get_sqe();
+    ::io_uring_prep_recv_multishot(sqe, pair[0], nullptr, 0, 0);
+    ::io_uring_sqe_set_flags(sqe, IOSQE_BUFFER_SELECT);
+#if HAVE_IO_URING_SQE_SET_BUF_GROUP
+    ::io_uring_sqe_set_buf_group(sqe, buffer_ring.get_bgid());
+#else
+    sqe->buf_group = buffer_ring.get_bgid();
+#endif
+
+    ring.submit();
+
+    build_and_send_frame(pair[1], prepare_invalid_header(payload1), payload1);
+
+    for (;;) {
+        Cqe cqe = ring.wait_cqe();
+
+        if (cqe.get_result() < 0) {
+            const int err = -cqe.get_result();
+            if (err == EINVAL || err == ENOBUFS || err == EOPNOTSUPP || err == ENOTSUP)
+                GTEST_SKIP() << "recv multishot unsupported/unreliable here: " << std::system_category().message(err);
+            if (!(cqe.get_flags() & IORING_CQE_F_MORE) && err == ENOBUFS)
+                break;
+            GTEST_FAIL() << "recv multishot: " << std::system_category().message(-cqe.get_result());
+        }
+        if (cqe.get_result() == 0)
+            break;
+
+        auto bid = cqe.get_buffer_id();
+        EXPECT_TRUE(bid);
+        if (!bid)
+            break;
+
+        const auto push_buffer_result = parser.push_buffer(*bid, cqe.get_result());
+        ASSERT_EQ(push_buffer_result, FrameParser::ParserError::WRONG_MAGIC);
+
+        break;
+    }
 }

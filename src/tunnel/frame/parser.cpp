@@ -1,6 +1,5 @@
 #include <algorithm>
 #include <deque>
-#include <exception>
 #include <optional>
 #include <span>
 #include <vector>
@@ -19,7 +18,7 @@ zportal::FrameParser::FrameParser(BufferRing& br) : br_(&br) {
     bid_refcount_.resize(br_->get_count());
 }
 
-void zportal::FrameParser::push_buffer(std::uint16_t bid, std::size_t size) noexcept {
+zportal::FrameParser::ParserError zportal::FrameParser::push_buffer(std::uint16_t bid, std::size_t size) {
     assert(bid < bid_refcount_.size());
 
     input_queue_.push_back(Chunk{bid, 0, size});
@@ -51,11 +50,11 @@ void zportal::FrameParser::push_buffer(std::uint16_t bid, std::size_t size) noex
             assert(read_progress_ == FrameHeader::wire_size);
 
             if (header_.get_magic() != FrameHeader::magic)
-                std::terminate();
+                return ParserError::WRONG_MAGIC;
 
             const std::size_t frame_size = header_.get_size();
             if (frame_size == 0 || frame_size > 1500)
-                std::terminate();
+                return ParserError::INVALID_SIZE;
 
             // Ensure we start from a known-empty frame after previous move to `frames_`.
             frame_ = Frame{};
@@ -106,8 +105,10 @@ void zportal::FrameParser::push_buffer(std::uint16_t bid, std::size_t size) noex
             continue;
         }
 
-        std::terminate();
+        return ParserError::INTERNAL_ERROR;
     }
+
+    return ParserError::OK;
 }
 
 std::optional<std::uint16_t> zportal::FrameParser::get_frame() noexcept {
