@@ -73,6 +73,9 @@ void zportal::Tunnel::loop_() {
 
                 if (!support_check::recv_multishot()) {
                     recv_sqe = ring_.get_sqe();
+                    if (!recv_sqe)
+                        throw std::bad_alloc();
+
                     prepare_recv(recv_sqe, recv_op, peer_.socket.get(), peer_.br.get_bgid());
                 }
 
@@ -84,6 +87,9 @@ void zportal::Tunnel::loop_() {
 
                 while (const auto frame = peer_.parser.get_frame()) {
                     auto writev_sqe = ring_.get_sqe();
+                    if (!writev_sqe)
+                        throw std::bad_alloc();
+
                     const auto& segments = peer_.parser.get_frame_by_fd(*frame)->get_segments();
                     ::io_uring_prep_writev(writev_sqe, tun_.get_fd(), segments.data(), segments.size(), 0);
 
@@ -144,6 +150,9 @@ void zportal::Tunnel::kick_send_() {
     const msghdr& hdr = frame.get();
 
     auto sqe = ring_.get_sqe();
+    if (!sqe)
+        throw std::bad_alloc();
+
     ::io_uring_prep_sendmsg(sqe, peer_.socket.get(), &hdr, 0);
 
     Operation op;
