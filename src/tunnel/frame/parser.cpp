@@ -9,12 +9,13 @@
 #include <cstdint>
 #include <cstring>
 
+#include <zportal/tools/config.hpp>
 #include <zportal/tools/debug.hpp>
 #include <zportal/tunnel/frame/frame.hpp>
 #include <zportal/tunnel/frame/header.hpp>
 #include <zportal/tunnel/frame/parser.hpp>
 
-zportal::FrameParser::FrameParser(BufferRing& br) : br_(&br) {
+zportal::FrameParser::FrameParser(BufferRing& br, const Config& cfg) : br_(&br), cfg_(&cfg) {
     bid_refcount_.resize(br_->get_count());
 }
 
@@ -53,7 +54,7 @@ zportal::FrameParser::ParserError zportal::FrameParser::push_buffer(std::uint16_
                 return ParserError::WRONG_MAGIC;
 
             const std::size_t frame_size = header_.get_size();
-            if (frame_size == 0 || frame_size > 1500)
+            if (frame_size == 0 || frame_size > static_cast<std::size_t>(cfg_->mtu))
                 return ParserError::INVALID_SIZE;
 
             // Ensure we start from a known-empty frame after previous move to `frames_`.

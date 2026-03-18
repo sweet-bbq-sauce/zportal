@@ -14,6 +14,7 @@
 #include <sys/uio.h>
 
 #include <zportal/iouring/cqe.hpp>
+#include <zportal/tools/config.hpp>
 #include <zportal/tools/debug.hpp>
 #include <zportal/tunnel/frame/header.hpp>
 #include <zportal/tunnel/frame/parser.hpp>
@@ -22,11 +23,11 @@
 #include <zportal/tunnel/submission.hpp>
 #include <zportal/tunnel/tunnel.hpp>
 
-zportal::Tunnel::Tunnel(IOUring&& ring, TUNInterface&& tun, Socket&& sock) noexcept
+zportal::Tunnel::Tunnel(IOUring&& ring, TUNInterface&& tun, Socket&& sock, const Config& cfg) noexcept
     : ring_(std::move(ring)), tun_(std::move(tun)),
       peer_({.br{ring_.create_buf_ring(1024, 4096)}, .socket{std::move(sock)}}),
-      tun_br_(ring_.create_buf_ring(1024, 2048)) {
-    peer_.parser = zportal::FrameParser{peer_.br};
+      tun_br_(ring_.create_buf_ring(1024, 2048)), cfg_(&cfg) {
+    peer_.parser = zportal::FrameParser{peer_.br, cfg};
     thread_ = std::async(std::launch::async, &Tunnel::loop_, this);
 }
 

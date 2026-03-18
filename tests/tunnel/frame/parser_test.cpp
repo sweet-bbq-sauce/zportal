@@ -16,6 +16,7 @@
 #include <zportal/iouring/cqe.hpp>
 #include <zportal/iouring/ring.hpp>
 #include <zportal/net/socket.hpp>
+#include <zportal/tools/config.hpp>
 #include <zportal/tunnel/frame/header.hpp>
 #include <zportal/tunnel/frame/parser.hpp>
 
@@ -99,7 +100,9 @@ TEST(FrameParser, ParseStream) {
     IOUring ring(16);
     BufferRing buffer_ring = ring.create_buf_ring(256, 64);
 
-    FrameParser parser(buffer_ring);
+    Config cfg{};
+    cfg.mtu = 1500;
+    FrameParser parser(buffer_ring, cfg);
 
     int pair[2];
     if (::socketpair(AF_UNIX, SOCK_STREAM, 0, pair) == -1)
@@ -197,7 +200,9 @@ TEST(FrameParser, ParseFrameWidthInvlidMagic) {
     IOUring ring(16);
     BufferRing buffer_ring = ring.create_buf_ring(256, 64);
 
-    FrameParser parser(buffer_ring);
+    Config cfg{};
+    cfg.mtu = 1500;
+    FrameParser parser(buffer_ring, cfg);
 
     int pair[2];
     if (::socketpair(AF_UNIX, SOCK_STREAM, 0, pair) == -1)

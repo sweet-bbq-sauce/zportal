@@ -38,7 +38,7 @@ int main(int argn, char* argv[]) {
     }
 
     zportal::IOUring ring(1024);
-    zportal::Tunnel tunnel(std::move(ring), std::move(tun), std::move(sock));
+    zportal::Tunnel tunnel(std::move(ring), std::move(tun), std::move(sock), cfg);
     tunnel_ptr = &tunnel;
 
     try {

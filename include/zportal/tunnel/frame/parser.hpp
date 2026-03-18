@@ -9,6 +9,7 @@
 #include <cstdint>
 
 #include <zportal/iouring/buffer_ring.hpp>
+#include <zportal/tools/config.hpp>
 #include <zportal/tunnel/frame/frame.hpp>
 #include <zportal/tunnel/frame/header.hpp>
 
@@ -18,7 +19,7 @@ class FrameParser {
   public:
     FrameParser() noexcept = default;
     using Chunk = Segment;
-    explicit FrameParser(BufferRing& br);
+    explicit FrameParser(BufferRing& br, const Config& cfg);
 
     enum class ParserError { OK, WRONG_MAGIC, INVALID_SIZE, INTERNAL_ERROR };
 
@@ -29,6 +30,7 @@ class FrameParser {
     const Frame* get_frame_by_fd(std::uint16_t fd) const noexcept;
 
   private:
+    const Config* cfg_;
     enum { READING_HEADER, READING_PAYLOAD } state_{READING_HEADER};
     FrameHeader header_;
     Frame frame_;
