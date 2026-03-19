@@ -21,6 +21,11 @@ class FrameParser {
     using Chunk = Segment;
     explicit FrameParser(BufferRing& br, const Config& cfg);
 
+    FrameParser(FrameParser&&) noexcept;
+    FrameParser& operator=(FrameParser&&) noexcept;
+    FrameParser(const FrameParser&) = delete;
+    FrameParser& operator=(const FrameParser&) = delete;
+
     enum class ParserError { OK, WRONG_MAGIC, INVALID_SIZE, INTERNAL_ERROR };
 
     [[nodiscard]] ParserError push_buffer(std::uint16_t bid, std::size_t size);

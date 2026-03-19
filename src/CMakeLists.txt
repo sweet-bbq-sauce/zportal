@@ -1,6 +1,7 @@
 include(GNUInstallDirs)
 include(CheckSymbolExists)
 include(CheckCXXSourceCompiles)
+include("${PROJECT_SOURCE_DIR}/cmake/sanitizers.cmake")
 
 add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/net")
 add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/iouring")
@@ -28,6 +29,10 @@ set_target_properties(zportal PROPERTIES
     VERSION ${PROJECT_VERSION}
     SOVERSION ${PROJECT_VERSION_MAJOR}
 )
+
+if(WITH_ASAN_UBSAN)
+    set_asan_ubsan(zportal)
+endif()
 
 install(TARGETS zportal
     EXPORT zportalTargets

@@ -16,10 +16,11 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 include("${PROJECT_SOURCE_DIR}/cmake/install.cmake")
 include(FetchContent)
 
+option(BUILD_TESTS "Build gtests" ON)
+option(WITH_ASAN_UBSAN "Build with ASan & UBSan" OFF)
+
 add_subdirectory("${PROJECT_SOURCE_DIR}/src")
 add_subdirectory("${PROJECT_SOURCE_DIR}/app")
-
-option(BUILD_TESTS "Build gtests" ON)
 
 if(BUILD_TESTS)
     enable_testing()
