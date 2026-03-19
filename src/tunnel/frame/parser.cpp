@@ -20,33 +20,6 @@ zportal::FrameParser::FrameParser(BufferRing& br, const Config& cfg) : br_(&br),
     bid_refcount_.resize(br_->get_count());
 }
 
-zportal::FrameParser::FrameParser(zportal::FrameParser&& other) noexcept
-    : cfg_(std::exchange(other.cfg_, nullptr)), state_(other.state_), header_(other.header_),
-      frame_(std::move(other.frame_)), read_progress_(std::exchange(other.read_progress_, 0)),
-      br_(std::exchange(other.br_, nullptr)), next_frame_id_(std::exchange(other.next_frame_id_, 0)),
-      input_queue_(std::move(other.input_queue_)), ready_frames_(std::move(other.ready_frames_)),
-      frames_(std::move(other.frames_)), bid_to_return_(std::move(other.bid_to_return_)),
-      bid_refcount_(std::move(other.bid_refcount_)) {}
-
-zportal::FrameParser& zportal::FrameParser::operator=(zportal::FrameParser&& other) noexcept {
-    if (&other == this)
-        return *this;
-
-    state_ = other.state_;
-    header_ = other.header_;
-    frame_ = std::move(other.frame_);
-    read_progress_ = std::exchange(other.read_progress_, 0);
-    br_ = std::exchange(other.br_, nullptr);
-    next_frame_id_ = std::exchange(other.next_frame_id_, 0);
-    input_queue_ = std::move(other.input_queue_);
-    ready_frames_ = std::move(other.ready_frames_);
-    frames_ = std::move(other.frames_);
-    bid_to_return_ = std::move(other.bid_to_return_);
-    bid_refcount_ = std::move(other.bid_refcount_);
-
-    return *this;
-}
-
 zportal::FrameParser::ParserError zportal::FrameParser::push_buffer(std::uint16_t bid, std::size_t size) {
     assert(bid < bid_refcount_.size());
 
