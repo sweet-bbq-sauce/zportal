@@ -1,6 +1,7 @@
 #pragma once
 
 #include <atomic>
+#include <deque>
 #include <future>
 
 #include <zportal/iouring/ring.hpp>
@@ -34,11 +35,14 @@ class Tunnel {
     TUNInterface tun_;
     Peer peer_;
     BufferRing tun_br_;
+    std::deque<std::uint16_t> tun_write_queue_;
     bool closing{};
 
     void loop_();
     void kick_send_();
+    void kick_write_();
     bool send_inprogress{};
+    bool write_inprogress{};
 };
 
 } // namespace zportal

@@ -23,6 +23,17 @@
 #include <zportal/tunnel/submission.hpp>
 #include <zportal/tunnel/tunnel.hpp>
 
+namespace {
+
+std::size_t frame_size_bytes(const zportal::Frame& frame) noexcept {
+    std::size_t total = 0;
+    for (const auto& segment : frame.get_segments())
+        total += segment.iov_len;
+    return total;
+}
+
+} // namespace
+
 zportal::Tunnel::Tunnel(IOUring&& ring, TUNInterface&& tun, Socket&& sock, const Config& cfg) noexcept
     : ring_(std::move(ring)), tun_(std::move(tun)),
       peer_({.br{ring_.create_buf_ring(1024, 4096)}, .socket{std::move(sock)}}),
@@ -87,23 +98,25 @@ void zportal::Tunnel::loop_() {
                 }
 
                 while (const auto frame = peer_.parser.get_frame()) {
-                    auto writev_sqe = ring_.get_sqe();
-                    if (!writev_sqe)
-                        throw std::bad_alloc();
-
-                    const auto& segments = peer_.parser.get_frame_by_fd(*frame)->get_segments();
-                    ::io_uring_prep_writev(writev_sqe, tun_.get_fd(), segments.data(), segments.size(), 0);
-
-                    zportal::Operation writev_op;
-                    writev_op.set_type(Operation::Type::WRITE);
-                    writev_op.set_bid(static_cast<std::uint16_t>(*frame));
-                    ::io_uring_sqe_set_data64(writev_sqe, writev_op.serialize());
+                    tun_write_queue_.push_back(*frame);
                 }
-                ring_.submit();
+                kick_write_();
             } break;
 
             case zportal::Operation::Type::WRITE: {
-                peer_.parser.free_frame(static_cast<std::uint64_t>(op.get_bid()));
+                Frame* frame = peer_.parser.get_frame_by_fd(op.get_bid());
+                if (!frame)
+                    throw std::runtime_error("Unknown frame id in WRITE completion");
+
+                const std::size_t expected = frame_size_bytes(*frame);
+                if (static_cast<std::size_t>(result) != expected) {
+                    running_.store(false, std::memory_order_relaxed);
+                    throw std::runtime_error("Short write to TUN");
+                }
+
+                peer_.parser.free_frame(op.get_bid());
+                write_inprogress = false;
+                kick_write_();
             } break;
 
             case zportal::Operation::Type::READ: {
@@ -116,12 +129,19 @@ void zportal::Tunnel::loop_() {
                     prepare_read(read_sqe, read_op, tun_.get_fd(), tun_br_.get_bgid());
                 }
 
-                peer_.out_queue.emplace_back(OutFrame{std::move(buffer)});
+                peer_.out_queue.emplace_back(std::move(buffer));
                 kick_send_();
             } break;
 
             case zportal::Operation::Type::SEND: {
-                peer_.out_queue.pop_front();
+                if (peer_.out_queue.empty())
+                    throw std::runtime_error("SEND completion without queued frame");
+
+                auto& frame = peer_.out_queue.front();
+                frame.advance(static_cast<std::size_t>(result));
+                if (frame.complete())
+                    peer_.out_queue.pop_front();
+
                 send_inprogress = false;
                 kick_send_();
             } break;
@@ -159,5 +179,30 @@ void zportal::Tunnel::kick_send_() {
     Operation op;
     op.set_type(Operation::Type::SEND);
     ::io_uring_sqe_set_data64(sqe, op.serialize());
+    ring_.submit();
+}
+
+void zportal::Tunnel::kick_write_() {
+    if (tun_write_queue_.empty() || write_inprogress)
+        return;
+
+    Frame* frame = peer_.parser.get_frame_by_fd(tun_write_queue_.front());
+    if (!frame)
+        throw std::runtime_error("Queued frame is missing");
+
+    auto sqe = ring_.get_sqe();
+    if (!sqe)
+        throw std::bad_alloc();
+
+    const auto& segments = frame->get_segments();
+    ::io_uring_prep_writev(sqe, tun_.get_fd(), segments.data(), segments.size(), 0);
+
+    Operation op;
+    op.set_type(Operation::Type::WRITE);
+    op.set_bid(tun_write_queue_.front());
+    ::io_uring_sqe_set_data64(sqe, op.serialize());
+
+    write_inprogress = true;
+    tun_write_queue_.pop_front();
     ring_.submit();
 }
