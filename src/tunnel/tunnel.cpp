@@ -44,21 +44,54 @@ zportal::Tunnel::Tunnel(IOUring&& ring, TUNInterface&& tun, Socket&& sock, const
 
 void zportal::Tunnel::loop_() {
     try {
-        auto read_sqe = ring_.get_sqe();
-        if (!read_sqe)
-            throw std::bad_alloc();
+        auto arm_read = [&]() {
+            auto sqe = ring_.get_sqe();
+            if (!sqe)
+                throw std::bad_alloc();
 
-        zportal::Operation read_op;
-        read_op.set_type(Operation::Type::READ);
-        prepare_read(read_sqe, read_op, tun_.get_fd(), tun_br_.get_bgid());
+            zportal::Operation op;
+            op.set_type(Operation::Type::READ);
+            prepare_read(sqe, op, tun_.get_fd(), tun_br_.get_bgid());
+        };
 
-        auto recv_sqe = ring_.get_sqe();
-        if (!recv_sqe)
-            throw std::bad_alloc();
+        auto arm_recv = [&]() {
+            auto sqe = ring_.get_sqe();
+            if (!sqe)
+                throw std::bad_alloc();
 
-        zportal::Operation recv_op;
-        recv_op.set_type(Operation::Type::RECV);
-        prepare_recv(recv_sqe, recv_op, peer_.socket.get(), peer_.br.get_bgid());
+            zportal::Operation op;
+            op.set_type(Operation::Type::RECV);
+            prepare_recv(sqe, op, peer_.socket.get(), peer_.br.get_bgid());
+        };
+
+        auto maybe_rearm_multishot = [&](Operation::Type type, const Cqe& cqe) {
+            if ((cqe.get_flags() & IORING_CQE_F_MORE) != 0)
+                return false;
+
+            switch (type) {
+            case Operation::Type::READ:
+                if (support_check::read_multishot()) {
+                    arm_read();
+                    return true;
+                }
+                break;
+
+            case Operation::Type::RECV:
+                if (support_check::recv_multishot()) {
+                    arm_recv();
+                    return true;
+                }
+                break;
+
+            default:
+                break;
+            }
+
+            return false;
+        };
+
+        arm_read();
+        arm_recv();
 
         ring_.submit();
 
@@ -72,6 +105,13 @@ void zportal::Tunnel::loop_() {
 
                 if (-result == ECONNRESET)
                     running_.store(false, std::memory_order_relaxed);
+                else if (-result == ENOBUFS) {
+                    peer_.br.flush_returns();
+                    tun_br_.flush_returns();
+                }
+
+                if (running_.load(std::memory_order_relaxed) && maybe_rearm_multishot(op.get_type(), cqe))
+                    ring_.submit();
 
                 continue;
             }
@@ -83,15 +123,16 @@ void zportal::Tunnel::loop_() {
                     break;
                 }
 
-                if (!support_check::recv_multishot()) {
-                    recv_sqe = ring_.get_sqe();
-                    if (!recv_sqe)
-                        throw std::bad_alloc();
+                if (!support_check::recv_multishot())
+                    arm_recv();
+                else
+                    maybe_rearm_multishot(op.get_type(), cqe);
 
-                    prepare_recv(recv_sqe, recv_op, peer_.socket.get(), peer_.br.get_bgid());
-                }
+                const auto bid = cqe.get_buffer_id();
+                if (!bid)
+                    throw std::runtime_error("RECV completion without buffer id");
 
-                if (peer_.parser.push_buffer(*cqe.get_buffer_id(), static_cast<std::size_t>(result)) !=
+                if (peer_.parser.push_buffer(*bid, static_cast<std::size_t>(result)) !=
                     FrameParser::ParserError::OK) {
                     running_.store(false, std::memory_order_relaxed);
                     throw std::runtime_error("Stream parse error");
@@ -115,19 +156,25 @@ void zportal::Tunnel::loop_() {
                 }
 
                 peer_.parser.free_frame(op.get_bid());
+                peer_.br.flush_returns();
                 write_inprogress = false;
                 kick_write_();
             } break;
 
             case zportal::Operation::Type::READ: {
-                const std::byte* ptr = tun_br_.buffer_ptr(*cqe.get_buffer_id());
-                std::vector<std::byte> buffer{ptr, ptr + static_cast<std::size_t>(result)};
-                tun_br_.return_buffer(*cqe.get_buffer_id());
+                if (!support_check::read_multishot())
+                    arm_read();
+                else
+                    maybe_rearm_multishot(op.get_type(), cqe);
 
-                if (!support_check::read_multishot()) {
-                    read_sqe = ring_.get_sqe();
-                    prepare_read(read_sqe, read_op, tun_.get_fd(), tun_br_.get_bgid());
-                }
+                const auto bid = cqe.get_buffer_id();
+                if (!bid)
+                    throw std::runtime_error("READ completion without buffer id");
+
+                const std::byte* ptr = tun_br_.buffer_ptr(*bid);
+                std::vector<std::byte> buffer{ptr, ptr + static_cast<std::size_t>(result)};
+                tun_br_.return_buffer(*bid);
+                tun_br_.flush_returns();
 
                 peer_.out_queue.emplace_back(std::move(buffer));
                 kick_send_();
