@@ -100,7 +100,7 @@ std::uint32_t zportal::crc32c(std::initializer_list<std::span<const std::byte>> 
 #if defined(__x86_64__) || defined(__i386__)
         is_sse4_supported() ? crc32c_hardware(crc, segment) : crc32c_software(crc, segment);
 #else
-        crc32c_software(crc, data);
+        crc32c_software(crc, segment);
 #endif
     }
 
