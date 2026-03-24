@@ -23,7 +23,7 @@ bool zportal::support_check::read_multishot() {
     if (!probe)
         throw std::system_error(ENOTSUP, std::generic_category(), "io_uring_get_probe");
 
-    cache = ::io_uring_opcode_supported(probe.get(), IORING_OP_READ_MULTISHOT);
+    cache = static_cast<bool>(::io_uring_opcode_supported(probe.get(), IORING_OP_READ_MULTISHOT));
 #else
     cache = false;
 #endif
