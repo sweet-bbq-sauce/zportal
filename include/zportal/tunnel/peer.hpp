@@ -10,6 +10,7 @@
 #include <zportal/iouring/buffer_ring.hpp>
 #include <zportal/iouring/ring.hpp>
 #include <zportal/net/socket.hpp>
+#include <zportal/tools/crc.hpp>
 #include <zportal/tunnel/frame/header.hpp>
 #include <zportal/tunnel/frame/parser.hpp>
 
@@ -20,12 +21,14 @@ class OutFrame {
     explicit OutFrame(std::vector<std::byte>&& payload) noexcept : payload_(std::move(payload)) {
         header_.clean();
         header_.set_size(payload_.size());
+        header_.set_crc(zportal::crc32c(payload));
         vec_[0] = {.iov_base = header_.data().data(), .iov_len = FrameHeader::wire_size};
         vec_[1] = {.iov_base = payload_.data(), .iov_len = payload_.size()};
         init_iov_();
     }
 
-    OutFrame(OutFrame&& other) noexcept : header_(other.header_), payload_(std::move(other.payload_)), hdr_(other.hdr_) {
+    OutFrame(OutFrame&& other) noexcept
+        : header_(other.header_), payload_(std::move(other.payload_)), hdr_(other.hdr_) {
         const std::size_t sent = other.sent_bytes_();
         init_iov_();
         advance(sent);

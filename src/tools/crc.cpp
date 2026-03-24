@@ -1,4 +1,5 @@
 #include <span>
+#include <vector>
 
 #include <cstddef>
 #include <cstdint>
@@ -93,7 +94,7 @@ std::uint32_t zportal::crc32c(std::span<const std::byte> data) noexcept {
     return crc ^ 0xFFFFFFFFu;
 }
 
-std::uint32_t zportal::crc32c(std::initializer_list<std::span<const std::byte>> data) noexcept {
+std::uint32_t zportal::crc32c(const std::vector<std::span<const std::byte>>& data) noexcept {
     std::uint32_t crc = 0xFFFFFFFFu;
 
     for (const auto& segment : data) {
@@ -105,4 +106,13 @@ std::uint32_t zportal::crc32c(std::initializer_list<std::span<const std::byte>> 
     }
 
     return crc ^ 0xFFFFFFFFu;
+}
+
+std::uint32_t zportal::crc32c(const std::vector<iovec>& data) noexcept {
+    std::vector<std::span<const std::byte>> tmp;
+    tmp.reserve(data.size());
+    for (const auto& vec : data)
+        tmp.emplace_back(reinterpret_cast<const std::byte*>(vec.iov_base), static_cast<std::size_t>(vec.iov_len));
+
+    return zportal::crc32c(tmp);
 }

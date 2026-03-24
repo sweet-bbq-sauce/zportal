@@ -132,8 +132,7 @@ void zportal::Tunnel::loop_() {
                 if (!bid)
                     throw std::runtime_error("RECV completion without buffer id");
 
-                if (peer_.parser.push_buffer(*bid, static_cast<std::size_t>(result)) !=
-                    FrameParser::ParserError::OK) {
+                if (peer_.parser.push_buffer(*bid, static_cast<std::size_t>(result)) != FrameParser::ParserError::OK) {
                     running_.store(false, std::memory_order_relaxed);
                     throw std::runtime_error("Stream parse error");
                 }

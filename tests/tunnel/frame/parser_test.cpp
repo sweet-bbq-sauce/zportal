@@ -17,6 +17,7 @@
 #include <zportal/iouring/ring.hpp>
 #include <zportal/net/socket.hpp>
 #include <zportal/tools/config.hpp>
+#include <zportal/tools/crc.hpp>
 #include <zportal/tunnel/frame/header.hpp>
 #include <zportal/tunnel/frame/parser.hpp>
 
@@ -26,15 +27,25 @@ static constexpr auto prepare_header = [](std::span<const std::uint8_t> payload)
     FrameHeader hdr;
     hdr.clean();
     hdr.set_size(payload.size());
+    hdr.set_crc(zportal::crc32c({reinterpret_cast<const std::byte*>(payload.data()), payload.size()}));
     return hdr;
 };
 
-static constexpr auto prepare_invalid_header = [](std::span<const std::uint8_t> payload) -> FrameHeader {
+static constexpr auto prepare_invalid_magic_header = [](std::span<const std::uint8_t> payload) -> FrameHeader {
     FrameHeader hdr;
     hdr.clean();
     std::uint32_t* magic = reinterpret_cast<std::uint32_t*>(hdr.data().data());
     *magic = 0x12345678; // Invalid magic number.
     hdr.set_size(payload.size());
+    hdr.set_crc(zportal::crc32c({reinterpret_cast<const std::byte*>(payload.data()), payload.size()}));
+    return hdr;
+};
+
+static constexpr auto prepare_invalid_crc_header = [](std::span<const std::uint8_t> payload) -> FrameHeader {
+    FrameHeader hdr;
+    hdr.clean();
+    hdr.set_size(payload.size());
+    hdr.set_crc(zportal::crc32c({reinterpret_cast<const std::byte*>(payload.data()), payload.size()}) - 1);
     return hdr;
 };
 
@@ -219,7 +230,7 @@ TEST(FrameParser, ParseFrameWidthInvlidMagic) {
 
     ring.submit();
 
-    build_and_send_frame(pair[1], prepare_invalid_header(payload1), payload1);
+    build_and_send_frame(pair[1], prepare_invalid_magic_header(payload1), payload1);
 
     for (;;) {
         Cqe cqe = ring.wait_cqe();
@@ -245,4 +256,72 @@ TEST(FrameParser, ParseFrameWidthInvlidMagic) {
 
         break;
     }
+}
+
+TEST(FrameParser, ParseFrameWidthInvlidCRC) {
+    IOUring ring(16);
+    BufferRing buffer_ring = ring.create_buf_ring(256, 64);
+
+    Config cfg{};
+    cfg.mtu = 1500;
+    FrameParser parser(buffer_ring, cfg);
+
+    int pair[2];
+    if (::socketpair(AF_UNIX, SOCK_STREAM, 0, pair) == -1)
+        GTEST_SKIP() << "socketpair: " << std::system_category().message(errno);
+
+    auto sqe = ring.get_sqe();
+    ::io_uring_prep_recv_multishot(sqe, pair[0], nullptr, 0, 0);
+    ::io_uring_sqe_set_flags(sqe, IOSQE_BUFFER_SELECT);
+#if HAVE_IO_URING_SQE_SET_BUF_GROUP
+    ::io_uring_sqe_set_buf_group(sqe, buffer_ring.get_bgid());
+#else
+    sqe->buf_group = buffer_ring.get_bgid();
+#endif
+
+    ring.submit();
+
+    build_and_send_frame(pair[1], prepare_invalid_crc_header(payload1), payload1);
+    ::shutdown(pair[1], SHUT_RDWR);
+
+    bool saw_crc_mismatch = false;
+    std::size_t received_total = 0;
+    const std::size_t expected_total = FrameHeader::wire_size + sizeof(payload1);
+
+    for (;;) {
+        Cqe cqe = ring.wait_cqe();
+
+        if (cqe.get_result() < 0) {
+            const int err = -cqe.get_result();
+            if (err == EINVAL || err == ENOBUFS || err == EOPNOTSUPP || err == ENOTSUP)
+                GTEST_SKIP() << "recv multishot unsupported/unreliable here: " << std::system_category().message(err);
+            if (!(cqe.get_flags() & IORING_CQE_F_MORE) && err == ENOBUFS)
+                break;
+            GTEST_FAIL() << "recv multishot: " << std::system_category().message(-cqe.get_result());
+        }
+        if (cqe.get_result() == 0)
+            break;
+
+        auto bid = cqe.get_buffer_id();
+        EXPECT_TRUE(bid);
+        if (!bid)
+            break;
+
+        const auto push_buffer_result = parser.push_buffer(*bid, cqe.get_result());
+        if (push_buffer_result == FrameParser::ParserError::CRC_MISMATCH) {
+            saw_crc_mismatch = true;
+            break;
+        }
+
+        ASSERT_EQ(push_buffer_result, FrameParser::ParserError::OK);
+        received_total += static_cast<std::size_t>(cqe.get_result());
+
+        if (!(cqe.get_flags() & IORING_CQE_F_MORE))
+            break;
+    }
+
+    if (!saw_crc_mismatch && received_total < expected_total)
+        GTEST_SKIP() << "recv multishot ended before full invalid frame was received";
+
+    ASSERT_TRUE(saw_crc_mismatch);
 }

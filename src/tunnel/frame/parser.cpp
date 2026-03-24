@@ -11,6 +11,7 @@
 #include <cstring>
 
 #include <zportal/tools/config.hpp>
+#include <zportal/tools/crc.hpp>
 #include <zportal/tools/debug.hpp>
 #include <zportal/tunnel/frame/frame.hpp>
 #include <zportal/tunnel/frame/header.hpp>
@@ -97,6 +98,10 @@ zportal::FrameParser::ParserError zportal::FrameParser::push_buffer(std::uint16_
                 break;
 
             assert(read_progress_ == whole);
+
+            const std::uint32_t payload_crc = zportal::crc32c(frame_.get_segments());
+            if (header_.get_crc() != payload_crc)
+                return ParserError::CRC_MISMATCH;
 
             ready_frames_.push_back(next_frame_id_);
             frames_.emplace(next_frame_id_++, std::move(frame_));
