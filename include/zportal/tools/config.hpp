@@ -1,7 +1,6 @@
 #pragma once
 
-#include <atomic>
-#include <chrono>
+#include <exception>
 #include <optional>
 #include <string>
 #include <vector>
@@ -11,9 +10,6 @@
 #include <zportal/net/address.hpp>
 
 namespace zportal {
-
-extern std::atomic_bool verbose_mode;
-extern std::atomic_bool monitor_mode;
 
 struct Config {
 
@@ -28,13 +24,10 @@ struct Config {
 
     // Client config
     std::vector<zportal::Address> proxies;
-    std::chrono::seconds reconnect_duration{5};
-    std::chrono::seconds connect_timeout{5};
-    std::size_t error_threshold{10};
 
     unsigned io_uring_entries{32};
 };
 
-void parse_arguments(zportal::Config& config, int argn, char* argv[]);
+std::exception_ptr parse_cli_arguments(zportal::Config& config, int argn, char* argv[], bool& end);
 
 } // namespace zportal

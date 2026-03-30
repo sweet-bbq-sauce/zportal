@@ -4,6 +4,7 @@
 #include <csignal>
 #include <cstdlib>
 
+#include <stdexcept>
 #include <zportal/net/connection.hpp>
 #include <zportal/net/socket.hpp>
 #include <zportal/net/tun.hpp>
@@ -21,7 +22,24 @@ int main(int argn, char* argv[]) {
     std::signal(SIGINT, on_interrupt);
 
     zportal::Config cfg{};
-    zportal::parse_arguments(cfg, argn, argv);
+    bool end{};
+    std::exception_ptr result = zportal::parse_cli_arguments(cfg, argn, argv, end);
+    if (result) {
+        try {
+            std::rethrow_exception(result);
+        } catch (const std::invalid_argument& e) {
+            std::cerr << "Invalid CLI argument: " << e.what() << std::endl;
+        } catch (const std::exception& e) {
+            std::cerr << "Exception in CLI parsing: " << e.what() << std::endl;
+        } catch (...) {
+            std::cerr << "Unknown exception in CLI parsing" << std::endl;
+        }
+
+        return EXIT_FAILURE;
+    }
+
+    if (end)
+        return EXIT_SUCCESS;
 
     zportal::TUNInterface tun(cfg.interface_name);
     tun.set_cidr(cfg.inner_address);
