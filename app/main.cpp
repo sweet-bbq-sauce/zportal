@@ -15,7 +15,7 @@ static zportal::Tunnel* tunnel_ptr = nullptr;
 
 extern "C" void on_interrupt(int) {
     if (tunnel_ptr)
-        tunnel_ptr->stop();
+        tunnel_ptr->close();
 }
 
 int main(int argn, char* argv[]) {
@@ -59,12 +59,17 @@ int main(int argn, char* argv[]) {
     zportal::Tunnel tunnel(std::move(ring), std::move(tun), std::move(sock), cfg);
     tunnel_ptr = &tunnel;
 
-    try {
-        tunnel.wait();
-    } catch (const std::exception& e) {
-        std::cout << e.what() << std::endl;
+    const auto result = tunnel.run();
+    if (result) {
+        try {
+            std::rethrow_exception(result);
+        } catch (const std::exception& e) {
+            std::cerr << "Tunnel error: " << e.what() << std::endl;
+        } catch (...) {
+            std::cerr << "Unknown error" << std::endl;
+        }
     }
-    std::cout << "Exiting ..." << std::endl;
 
-    return EXIT_SUCCESS;
+    std::cout << "Exiting ..." << std::endl;
+    return result ? EXIT_FAILURE : EXIT_SUCCESS;
 }

@@ -1,8 +1,7 @@
 #pragma once
 
-#include <atomic>
 #include <deque>
-#include <future>
+#include <exception>
 
 #include <zportal/iouring/ring.hpp>
 #include <zportal/net/socket.hpp>
@@ -21,24 +20,21 @@ class Tunnel {
     Tunnel(const Tunnel&) = delete;
     Tunnel& operator=(const Tunnel&) = delete;
 
-    void wait();
-    void stop() noexcept;
-    bool running() const noexcept;
+    std::exception_ptr run() noexcept;
+    void close(std::exception_ptr reason = {}) noexcept;
 
   private:
     const Config* cfg_;
 
-    std::future<void> thread_;
-    std::atomic_bool running_{true};
+    bool closing_{};
+    std::exception_ptr close_reason_{};
 
     IOUring ring_;
     TUNInterface tun_;
     Peer peer_;
     BufferRing tun_br_;
     std::deque<std::uint16_t> tun_write_queue_;
-    bool closing{};
 
-    void loop_();
     void kick_send_();
     void kick_write_();
     bool send_inprogress{};
