@@ -59,7 +59,7 @@ int main(int argn, char* argv[]) {
     zportal::Tunnel tunnel(std::move(ring), std::move(tun), std::move(sock), cfg);
     tunnel_ptr = &tunnel;
 
-    const auto result = tunnel.run();
+    result = tunnel.run();
     if (result) {
         try {
             std::rethrow_exception(result);
