@@ -1,26 +1,16 @@
 #include <exception>
 #include <iostream>
+#include <stdexcept>
 
-#include <csignal>
 #include <cstdlib>
 
-#include <stdexcept>
 #include <zportal/net/connection.hpp>
 #include <zportal/net/socket.hpp>
 #include <zportal/net/tun.hpp>
 #include <zportal/tools/config.hpp>
 #include <zportal/tunnel/tunnel.hpp>
 
-static zportal::Tunnel* tunnel_ptr = nullptr;
-
-extern "C" void on_interrupt(int) {
-    if (tunnel_ptr)
-        tunnel_ptr->close();
-}
-
 int main(int argn, char* argv[]) {
-    std::signal(SIGINT, on_interrupt);
-
     zportal::Config cfg{};
     bool end{};
     std::exception_ptr result = zportal::parse_cli_arguments(cfg, argn, argv, end);
@@ -57,7 +47,6 @@ int main(int argn, char* argv[]) {
 
     zportal::IOUring ring(1024);
     zportal::Tunnel tunnel(std::move(ring), std::move(tun), std::move(sock), cfg);
-    tunnel_ptr = &tunnel;
 
     const auto run_result = tunnel.run();
     if (run_result) {

@@ -12,6 +12,7 @@ enum class ErrorDomain { None, Protocol, Socket, Tun, IoUring, Resource, Interna
 
 enum class ErrorCode : std::uint32_t {
     None = 0x000,
+    Shutdown,
 
     // Protocol errors
     InvalidMagic = 0x100,

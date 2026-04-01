@@ -3,9 +3,11 @@
 #include <vector>
 
 #include <cerrno>
+#include <csignal>
 #include <cstddef>
 
 #include <liburing.h>
+#include <sys/signalfd.h>
 #include <sys/socket.h>
 #include <sys/uio.h>
 
@@ -49,7 +51,30 @@ void zportal::Tunnel::close(zportal::Error reason) noexcept {
 }
 
 zportal::Error zportal::Tunnel::run() noexcept {
-    auto arm_read = [&]() {
+
+    sigset_t mask;
+    sigemptyset(&mask);
+    sigaddset(&mask, SIGTERM);
+    sigaddset(&mask, SIGINT);
+
+    sigprocmask(SIG_BLOCK, &mask, nullptr);
+    const int signal_fd = signalfd(-1, &mask, SFD_CLOEXEC | SFD_NONBLOCK);
+    signalfd_siginfo signal_info{};
+
+    const auto arm_signal = [&]() {
+        auto sqe = ring_.get_sqe();
+        if (!sqe) {
+            close(Error(ErrorCode::NotEnoughMemory));
+            return;
+        }
+
+        Operation op;
+        op.set_type(Operation::Type::SIGNAL);
+        io_uring_sqe_set_data64(sqe, op.serialize());
+        io_uring_prep_read(sqe, signal_fd, &signal_info, sizeof(signal_info), 0);
+    };
+
+    const auto arm_read = [&]() {
         auto sqe = ring_.get_sqe();
         if (!sqe) {
             close(Error(ErrorCode::NotEnoughMemory));
@@ -61,7 +86,7 @@ zportal::Error zportal::Tunnel::run() noexcept {
         prepare_read(sqe, op, tun_.get_fd(), tun_br_.get_bgid());
     };
 
-    auto arm_recv = [&]() {
+    const auto arm_recv = [&]() {
         auto sqe = ring_.get_sqe();
         if (!sqe) {
             close(Error(ErrorCode::NotEnoughMemory));
@@ -73,7 +98,7 @@ zportal::Error zportal::Tunnel::run() noexcept {
         prepare_recv(sqe, op, peer_.socket.get(), peer_.br.get_bgid());
     };
 
-    auto maybe_rearm_multishot = [&](Operation::Type type, const Cqe& cqe) {
+    const auto maybe_rearm_multishot = [&](Operation::Type type, const Cqe& cqe) {
         if ((cqe.get_flags() & IORING_CQE_F_MORE) != 0)
             return false;
 
@@ -104,6 +129,7 @@ zportal::Error zportal::Tunnel::run() noexcept {
     try {
         arm_read();
         arm_recv();
+        arm_signal();
 
         if (!closing_)
             ring_.submit();
@@ -114,7 +140,12 @@ zportal::Error zportal::Tunnel::run() noexcept {
             const int result = cqe.get_result();
 
             switch (op.get_type()) {
-            case zportal::Operation::Type::RECV: {
+            case Operation::Type::SIGNAL: {
+                close(Error(ErrorCode::Shutdown));
+                break;
+            }
+
+            case Operation::Type::RECV: {
                 if (result == 0)
                     close(Error(ErrorCode::PeerClosed));
                 else if (result < 0) {
@@ -154,7 +185,7 @@ zportal::Error zportal::Tunnel::run() noexcept {
                 kick_write_();
             } break;
 
-            case zportal::Operation::Type::WRITE: {
+            case Operation::Type::WRITE: {
                 if (result < 0) {
                     close(Error(ErrorCode::TunWriteFailed, {}, -result));
                     break;
@@ -178,7 +209,7 @@ zportal::Error zportal::Tunnel::run() noexcept {
                 kick_write_();
             } break;
 
-            case zportal::Operation::Type::READ: {
+            case Operation::Type::READ: {
                 if (!support_check::read_multishot())
                     arm_read();
                 else
@@ -202,7 +233,7 @@ zportal::Error zportal::Tunnel::run() noexcept {
                 kick_send_();
             } break;
 
-            case zportal::Operation::Type::SEND: {
+            case Operation::Type::SEND: {
                 if (peer_.out_queue.empty()) {
                     close(Error(ErrorCode::SendCqeWithoutFrameId));
                     break;

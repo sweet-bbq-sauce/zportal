@@ -105,6 +105,11 @@ std::string zportal::Error::to_string() const {
         break;
     }
 
+    case ErrorCode::Shutdown: {
+        out << "Shutdown";
+        break;
+    }
+
     // Protocol errors
     case ErrorCode::InvalidMagic: {
         out << "Invalid magic number";

@@ -18,7 +18,7 @@ class Operation {
     Operation() noexcept = default;
     explicit Operation(std::uint64_t serialized) noexcept;
 
-    enum class Type : std::uint8_t { NONE, RECV, SEND, READ, WRITE };
+    enum class Type : std::uint8_t { NONE, RECV, SEND, READ, WRITE, SIGNAL };
 
     Type get_type() const noexcept;
     std::uint16_t get_bid() const noexcept;
