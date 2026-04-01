@@ -21,7 +21,7 @@ class OutFrame {
     explicit OutFrame(std::vector<std::byte>&& payload) noexcept : payload_(std::move(payload)) {
         header_.clean();
         header_.set_size(payload_.size());
-        header_.set_crc(zportal::crc32c(payload));
+        header_.set_crc(zportal::crc32c(payload_));
         vec_[0] = {.iov_base = header_.data().data(), .iov_len = FrameHeader::wire_size};
         vec_[1] = {.iov_base = payload_.data(), .iov_len = payload_.size()};
         init_iov_();

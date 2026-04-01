@@ -1,6 +1,5 @@
 #include <algorithm>
 #include <deque>
-#include <iostream>
 #include <optional>
 #include <span>
 #include <utility>
@@ -102,8 +101,6 @@ zportal::Error zportal::FrameParser::push_buffer(std::uint16_t bid, std::size_t 
             assert(read_progress_ == whole);
 
             const std::uint32_t payload_crc = zportal::crc32c(frame_.get_segments());
-            std::cout << "Local: " << payload_crc << std::endl;
-            std::cout << "Remote: " << header_.get_crc() << std::endl;
             if (header_.get_crc() != payload_crc)
                 return Error(ErrorCode::CrcMismatch);
 
