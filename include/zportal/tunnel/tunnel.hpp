@@ -1,13 +1,13 @@
 #pragma once
 
 #include <deque>
-#include <exception>
 
 #include <zportal/iouring/ring.hpp>
 #include <zportal/net/socket.hpp>
 #include <zportal/net/tun.hpp>
 #include <zportal/tools/config.hpp>
 #include <zportal/tunnel/peer.hpp>
+#include <zportal/tools/error.hpp>
 
 namespace zportal {
 
@@ -20,14 +20,14 @@ class Tunnel {
     Tunnel(const Tunnel&) = delete;
     Tunnel& operator=(const Tunnel&) = delete;
 
-    std::exception_ptr run() noexcept;
-    void close(std::exception_ptr reason = {}) noexcept;
+    Error run() noexcept;
+    void close(Error reason = {}) noexcept;
 
   private:
     const Config* cfg_;
 
     bool closing_{};
-    std::exception_ptr close_reason_{};
+    Error close_reason_{};
 
     IOUring ring_;
     TUNInterface tun_;

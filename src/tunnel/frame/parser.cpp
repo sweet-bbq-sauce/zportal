@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <deque>
+#include <iostream>
 #include <optional>
 #include <span>
 #include <utility>
@@ -13,6 +14,7 @@
 #include <zportal/tools/config.hpp>
 #include <zportal/tools/crc.hpp>
 #include <zportal/tools/debug.hpp>
+#include <zportal/tools/error.hpp>
 #include <zportal/tunnel/frame/frame.hpp>
 #include <zportal/tunnel/frame/header.hpp>
 #include <zportal/tunnel/frame/parser.hpp>
@@ -21,7 +23,7 @@ zportal::FrameParser::FrameParser(BufferRing& br, const Config& cfg) : br_(&br),
     bid_refcount_.resize(br_->get_count());
 }
 
-zportal::FrameParser::ParserError zportal::FrameParser::push_buffer(std::uint16_t bid, std::size_t size) {
+zportal::Error zportal::FrameParser::push_buffer(std::uint16_t bid, std::size_t size) {
     assert(bid < bid_refcount_.size());
 
     input_queue_.push_back(Chunk{bid, 0, size});
@@ -53,11 +55,11 @@ zportal::FrameParser::ParserError zportal::FrameParser::push_buffer(std::uint16_
             assert(read_progress_ == FrameHeader::wire_size);
 
             if (header_.get_magic() != FrameHeader::magic)
-                return ParserError::WRONG_MAGIC;
+                return Error(ErrorCode::InvalidMagic);
 
             const std::size_t frame_size = header_.get_size();
             if (frame_size == 0 || frame_size > static_cast<std::size_t>(cfg_->mtu))
-                return ParserError::INVALID_SIZE;
+                return Error(ErrorCode::InvalidSize);
 
             // Ensure we start from a known-empty frame after previous move to `frames_`.
             frame_ = Frame{};
@@ -100,8 +102,10 @@ zportal::FrameParser::ParserError zportal::FrameParser::push_buffer(std::uint16_
             assert(read_progress_ == whole);
 
             const std::uint32_t payload_crc = zportal::crc32c(frame_.get_segments());
+            std::cout << "Local: " << payload_crc << std::endl;
+            std::cout << "Remote: " << header_.get_crc() << std::endl;
             if (header_.get_crc() != payload_crc)
-                return ParserError::CRC_MISMATCH;
+                return Error(ErrorCode::CrcMismatch);
 
             ready_frames_.push_back(next_frame_id_);
             frames_.emplace(next_frame_id_++, std::move(frame_));
@@ -112,10 +116,10 @@ zportal::FrameParser::ParserError zportal::FrameParser::push_buffer(std::uint16_
             continue;
         }
 
-        return ParserError::INTERNAL_ERROR;
+        return Error(ErrorCode::RecvParserError);
     }
 
-    return ParserError::OK;
+    return {};
 }
 
 std::optional<std::uint16_t> zportal::FrameParser::get_frame() noexcept {

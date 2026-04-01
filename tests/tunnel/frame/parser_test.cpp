@@ -1,3 +1,4 @@
+#include "zportal/tools/error.hpp"
 #include <span>
 #include <system_error>
 #include <vector>
@@ -161,7 +162,7 @@ TEST(FrameParser, ParseStream) {
         if (!bid)
             break;
 
-        EXPECT_EQ(parser.push_buffer(*bid, cqe.get_result()), FrameParser::ParserError::OK);
+        EXPECT_EQ(parser.push_buffer(*bid, cqe.get_result()), Error{});
         saw_payload = true;
         received_total += static_cast<std::size_t>(cqe.get_result());
 
@@ -252,7 +253,7 @@ TEST(FrameParser, ParseFrameWidthInvlidMagic) {
             break;
 
         const auto push_buffer_result = parser.push_buffer(*bid, cqe.get_result());
-        ASSERT_EQ(push_buffer_result, FrameParser::ParserError::WRONG_MAGIC);
+        ASSERT_EQ(push_buffer_result, Error(ErrorCode::InvalidMagic));
 
         break;
     }
@@ -308,12 +309,12 @@ TEST(FrameParser, ParseFrameWidthInvlidCRC) {
             break;
 
         const auto push_buffer_result = parser.push_buffer(*bid, cqe.get_result());
-        if (push_buffer_result == FrameParser::ParserError::CRC_MISMATCH) {
+        if (push_buffer_result == Error(ErrorCode::CrcMismatch)) {
             saw_crc_mismatch = true;
             break;
         }
 
-        ASSERT_EQ(push_buffer_result, FrameParser::ParserError::OK);
+        ASSERT_EQ(push_buffer_result, Error{});
         received_total += static_cast<std::size_t>(cqe.get_result());
 
         if (!(cqe.get_flags() & IORING_CQE_F_MORE))

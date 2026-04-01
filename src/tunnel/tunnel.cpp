@@ -1,7 +1,4 @@
 #include <exception>
-#include <new>
-#include <stdexcept>
-#include <system_error>
 #include <utility>
 #include <vector>
 
@@ -15,6 +12,7 @@
 #include <zportal/iouring/cqe.hpp>
 #include <zportal/tools/config.hpp>
 #include <zportal/tools/debug.hpp>
+#include <zportal/tools/error.hpp>
 #include <zportal/tunnel/frame/header.hpp>
 #include <zportal/tunnel/frame/parser.hpp>
 #include <zportal/tunnel/operation.hpp>
@@ -40,7 +38,7 @@ zportal::Tunnel::Tunnel(IOUring&& ring, TUNInterface&& tun, Socket&& sock, const
     peer_.parser = zportal::FrameParser{peer_.br, cfg};
 }
 
-void zportal::Tunnel::close(std::exception_ptr reason) noexcept {
+void zportal::Tunnel::close(zportal::Error reason) noexcept {
     if (closing_)
         return;
 
@@ -50,11 +48,11 @@ void zportal::Tunnel::close(std::exception_ptr reason) noexcept {
     closing_ = true;
 }
 
-std::exception_ptr zportal::Tunnel::run() noexcept {
+zportal::Error zportal::Tunnel::run() noexcept {
     auto arm_read = [&]() {
         auto sqe = ring_.get_sqe();
         if (!sqe) {
-            close(std::make_exception_ptr(std::bad_alloc()));
+            close(Error(ErrorCode::NotEnoughMemory));
             return;
         }
 
@@ -66,7 +64,7 @@ std::exception_ptr zportal::Tunnel::run() noexcept {
     auto arm_recv = [&]() {
         auto sqe = ring_.get_sqe();
         if (!sqe) {
-            close(std::make_exception_ptr(std::bad_alloc()));
+            close(Error(ErrorCode::NotEnoughMemory));
             return;
         }
 
@@ -115,28 +113,20 @@ std::exception_ptr zportal::Tunnel::run() noexcept {
             const Operation op{cqe.get_data64()};
             const int result = cqe.get_result();
 
-            if (result < 0) {
-                DEBUG_ERRNO(-result, "CQE result");
-
-                if (-result == ECONNRESET) {
-                    close(std::make_exception_ptr(std::system_error(-result, std::system_category())));
-                    break;
-                } else if (-result == ENOBUFS) {
-                    peer_.br.flush_returns();
-                    tun_br_.flush_returns();
-                }
-
-                if (!closing_ && maybe_rearm_multishot(op.get_type(), cqe))
-                    ring_.submit();
-
-                continue;
-            }
-
             switch (op.get_type()) {
             case zportal::Operation::Type::RECV: {
                 if (result == 0)
-                    close();
-                else {
+                    close(Error(ErrorCode::PeerClosed));
+                else if (result < 0) {
+                    close(Error(ErrorCode::RecvFailed, {}, -result));
+                    if (-result == ENOBUFS) {
+                        peer_.br.flush_returns();
+                        tun_br_.flush_returns();
+                    }
+
+                    if (!closing_ && maybe_rearm_multishot(op.get_type(), cqe))
+                        ring_.submit();
+                } else {
                     if (!support_check::recv_multishot())
                         arm_recv();
                     else
@@ -148,12 +138,13 @@ std::exception_ptr zportal::Tunnel::run() noexcept {
 
                 const auto bid = cqe.get_buffer_id();
                 if (!bid) {
-                    close(std::make_exception_ptr(std::runtime_error("RECV completion without buffer id")));
+                    close(Error(ErrorCode::RecvCqeMissingBid));
                     break;
                 }
 
-                if (peer_.parser.push_buffer(*bid, static_cast<std::size_t>(result)) != FrameParser::ParserError::OK) {
-                    close(std::make_exception_ptr(std::runtime_error("Stream parse error")));
+                const auto parser_result = peer_.parser.push_buffer(*bid, static_cast<std::size_t>(result));
+                if (parser_result) {
+                    close(Error(parser_result));
                     break;
                 }
 
@@ -164,15 +155,20 @@ std::exception_ptr zportal::Tunnel::run() noexcept {
             } break;
 
             case zportal::Operation::Type::WRITE: {
+                if (result < 0) {
+                    close(Error(ErrorCode::TunWriteFailed, {}, -result));
+                    break;
+                }
+
                 Frame* frame = peer_.parser.get_frame_by_fd(op.get_bid());
                 if (!frame) {
-                    close(std::make_exception_ptr(std::runtime_error("Unknown frame id in WRITE completion")));
+                    close(Error(ErrorCode::WriteUnknownFrameId));
                     break;
                 }
 
                 const std::size_t expected = frame_size_bytes(*frame);
                 if (static_cast<std::size_t>(result) != expected) {
-                    close(std::make_exception_ptr(std::runtime_error("Short write to TUN")));
+                    close(Error(ErrorCode::TunWriteFailed, "Partial write"));
                     break;
                 }
 
@@ -193,7 +189,7 @@ std::exception_ptr zportal::Tunnel::run() noexcept {
 
                 const auto bid = cqe.get_buffer_id();
                 if (!bid) {
-                    close(std::make_exception_ptr(std::runtime_error("READ completion without buffer id")));
+                    close(Error(ErrorCode::RecvCqeMissingBid));
                     break;
                 }
 
@@ -208,7 +204,7 @@ std::exception_ptr zportal::Tunnel::run() noexcept {
 
             case zportal::Operation::Type::SEND: {
                 if (peer_.out_queue.empty()) {
-                    close(std::make_exception_ptr(std::runtime_error("SEND completion without queued frame")));
+                    close(Error(ErrorCode::SendCqeWithoutFrameId));
                     break;
                 }
 
@@ -230,8 +226,7 @@ std::exception_ptr zportal::Tunnel::run() noexcept {
         }
 
     } catch (...) {
-        if (!closing_)
-            close(std::current_exception());
+        close(Error(ErrorCode::Exception, {}, 0, std::current_exception()));
     }
 
     return close_reason_;
@@ -247,7 +242,7 @@ void zportal::Tunnel::kick_send_() {
 
     auto sqe = ring_.get_sqe();
     if (!sqe) {
-        close(std::make_exception_ptr(std::bad_alloc()));
+        close(Error(ErrorCode::NotEnoughMemory));
         return;
     }
 
@@ -266,13 +261,13 @@ void zportal::Tunnel::kick_write_() {
 
     Frame* frame = peer_.parser.get_frame_by_fd(tun_write_queue_.front());
     if (!frame) {
-        close(std::make_exception_ptr(std::runtime_error("Queued frame is missing")));
+        close(Error(ErrorCode::WriteUnknownFrameId));
         return;
     }
 
     auto sqe = ring_.get_sqe();
     if (!sqe) {
-        close(std::make_exception_ptr(std::bad_alloc()));
+        close(Error(ErrorCode::NotEnoughMemory));
         return;
     }
 

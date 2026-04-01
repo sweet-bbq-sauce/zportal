@@ -59,15 +59,9 @@ int main(int argn, char* argv[]) {
     zportal::Tunnel tunnel(std::move(ring), std::move(tun), std::move(sock), cfg);
     tunnel_ptr = &tunnel;
 
-    result = tunnel.run();
-    if (result) {
-        try {
-            std::rethrow_exception(result);
-        } catch (const std::exception& e) {
-            std::cerr << "Tunnel error: " << e.what() << std::endl;
-        } catch (...) {
-            std::cerr << "Unknown error" << std::endl;
-        }
+    const auto run_result = tunnel.run();
+    if (run_result) {
+        std::cout << run_result.to_string() << std::endl;
     }
 
     std::cout << "Exiting ..." << std::endl;
