@@ -37,7 +37,7 @@ std::exception_ptr zportal::parse_cli_arguments(zportal::Config& config, int arg
     end = false;
     try {
         int opt;
-        while ((opt = ::getopt(argn, argv, ":n:m:a:c:b:phv")) != -1) {
+        while ((opt = ::getopt(argn, argv, ":n:m:a:c:b:p:hv")) != -1) {
             switch (opt) {
             case 'n': {
                 config.interface_name = optarg;
