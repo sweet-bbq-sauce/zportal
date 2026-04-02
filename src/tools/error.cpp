@@ -14,7 +14,11 @@ zportal::Error::Error(ErrorCode code, const char* message, int sys_errno, std::e
 zportal::ErrorDomain zportal::Error::get_domain() const noexcept {
     const std::uint32_t value = static_cast<std::uint32_t>(code_);
 
-    if (value >= 0x600)
+    if (value >= 0x800)
+        return ErrorDomain::Resolve;
+    else if (value >= 0x700)
+        return ErrorDomain::Socks;
+    else if (value >= 0x600)
         return ErrorDomain::Internal;
     else if (value >= 0x500)
         return ErrorDomain::Resource;
@@ -51,11 +55,15 @@ std::source_location zportal::Error::where() const {
 }
 
 zportal::Error::operator bool() const noexcept {
-    return code_ != ErrorCode::None;
+    return code_ != ErrorCode::None && code_ != ErrorCode::Shutdown;
 }
 
 bool zportal::Error::operator==(const Error& e) const noexcept {
     return code_ == e.code_;
+}
+
+bool zportal::Error::operator==(ErrorCode code) const noexcept {
+    return code_ == code;
 }
 
 std::string zportal::Error::to_string() const {
@@ -88,6 +96,16 @@ std::string zportal::Error::to_string() const {
 
     case ErrorDomain::Resource: {
         out << "Resource";
+        break;
+    }
+
+    case ErrorDomain::Socks: {
+        out << "Socks";
+        break;
+    }
+
+    case ErrorDomain::Resolve: {
+        out << "DNS resolving";
         break;
     }
 

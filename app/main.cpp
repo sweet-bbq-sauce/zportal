@@ -1,3 +1,4 @@
+#include "zportal/tools/error.hpp"
 #include <exception>
 #include <iostream>
 #include <stdexcept>
@@ -9,6 +10,11 @@
 #include <zportal/net/tun.hpp>
 #include <zportal/tools/config.hpp>
 #include <zportal/tunnel/tunnel.hpp>
+
+[[noreturn]] void end_with_error(const zportal::Error& err) noexcept {
+    std::cerr << "Error: " << err.to_string() << std::endl;
+    std::exit(EXIT_FAILURE);
+}
 
 int main(int argn, char* argv[]) {
     zportal::Config cfg{};
@@ -38,10 +44,22 @@ int main(int argn, char* argv[]) {
 
     zportal::Socket sock;
     if (cfg.connect_address) {
-        sock = zportal::connect_to(*cfg.connect_address, cfg.proxies);
+        auto connect_result = zportal::connect_to(*cfg.connect_address, cfg.proxies);
+        if (!connect_result)
+            end_with_error(connect_result.error());
+
+        sock = std::move(*connect_result);
         std::cout << "Connected" << std::endl;
     } else {
-        sock = zportal::accept_from(zportal::create_listener(*cfg.bind_address));
+        const auto listener_result = zportal::create_listener(*cfg.bind_address);
+        if (!listener_result)
+            end_with_error(listener_result.error());
+
+        auto accept_result = zportal::accept_from(*listener_result);
+        if (!accept_result)
+            end_with_error(accept_result.error());
+
+        sock = std::move(*accept_result);
         std::cout << "Accepted" << std::endl;
     }
 
@@ -49,9 +67,9 @@ int main(int argn, char* argv[]) {
     zportal::Tunnel tunnel(std::move(ring), std::move(tun), std::move(sock), cfg);
 
     const auto run_result = tunnel.run();
-    if (run_result) {
-        std::cout << run_result.to_string() << std::endl;
-    }
+    if (run_result)
+        end_with_error(run_result);
+        
 
     std::cout << "Exiting ..." << std::endl;
     return result ? EXIT_FAILURE : EXIT_SUCCESS;

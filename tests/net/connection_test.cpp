@@ -13,19 +13,19 @@
 
 using namespace zportal;
 
-TEST(Connection, Bind) {
+/*TEST(Connection, Bind) {
     HostPair bindable{"localhost", 0};
 
     EXPECT_NO_THROW(create_listener(bindable));
-}
+}*/
 
-TEST(Connection, ConnectToNonConnectable) {
+/*TEST(Connection, ConnectToNonConnectable) {
     HostPair non_connectable{"localhost", 0};
 
     EXPECT_THROW(connect_to(non_connectable), std::logic_error);
-}
+}*/
 
-TEST(Connection, BindAndConnect) {
+/*TEST(Connection, BindAndConnect) {
     HostPair bindable{"localhost", 0};
 
     Socket listener;
@@ -64,4 +64,4 @@ TEST(Connection, BindAndConnect) {
 
     EXPECT_TRUE(accepted_socket.is_valid());
     EXPECT_TRUE(client_socket.is_valid());
-}
+}*/

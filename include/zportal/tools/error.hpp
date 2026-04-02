@@ -1,6 +1,7 @@
 #pragma once
 
 #include <exception>
+#include <expected>
 #include <source_location>
 #include <string>
 
@@ -8,7 +9,7 @@
 
 namespace zportal {
 
-enum class ErrorDomain { None, Protocol, Socket, Tun, IoUring, Resource, Internal };
+enum class ErrorDomain { None, Protocol, Socket, Tun, IoUring, Resource, Internal, Socks, Resolve };
 
 enum class ErrorCode : std::uint32_t {
     None = 0x000,
@@ -21,10 +22,15 @@ enum class ErrorCode : std::uint32_t {
 
     // Socket errors
     PeerClosed = 0x200,
+    InvalidSocket,
     ConnectFailed,
     SendFailed,
     RecvFailed,
     SocketInterrupted,
+    BindFailed,
+    ListenFailed,
+    SetSockOptFailed,
+    AcceptFailed,
 
     // TUN errors
     TunOpenFailed = 0x300,
@@ -45,7 +51,24 @@ enum class ErrorCode : std::uint32_t {
     RecvParserError,
     RecvCqeMissingBid,
     SendCqeWithoutFrameId,
-    WriteUnknownFrameId
+    WriteUnknownFrameId,
+
+    // SOCKS5 errors
+    SocksPeerClosed = 0x700,
+    SocksHostnameTooLong,
+    SocksRecvTimeout,
+    SocksSendTimeout,
+    SocksConnectFailed,
+    SocksUnsupportedFamily,
+    SocksAuthMethodUnsupported,
+    SocksErrno,
+
+    // DNS resolving errors
+    ResolveNotFound = 0x800,
+    ResolveInvalidRequest,
+    ResolveSystemError,
+    ResolveTemporaryFailure,
+    ResolveFailed
 };
 
 class Error {
@@ -65,6 +88,7 @@ class Error {
 
     explicit operator bool() const noexcept;
     bool operator==(const Error& e) const noexcept;
+    bool operator==(ErrorCode code) const noexcept;
 
     std::string to_string() const;
 
@@ -75,5 +99,8 @@ class Error {
     std::exception_ptr exception_{};
     std::source_location where_{std::source_location::current()};
 };
+
+template <typename T> using Result = std::expected<T, Error>;
+using Fail = std::unexpected<Error>;
 
 } // namespace zportal
