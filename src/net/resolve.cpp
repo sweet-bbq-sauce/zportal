@@ -1,4 +1,3 @@
-#include <exception>
 #include <variant>
 
 #include <netdb.h>
@@ -32,7 +31,7 @@ zportal::Result<zportal::SockAddress> zportal::resolve(const Address& address) n
             return Fail(ErrorCode::ResolveTemporaryFailure);
 
         case EAI_SYSTEM:
-            return Fail(Error{ErrorCode::ResolveSystemError, ::gai_strerror(code), code});
+            return Fail({ErrorCode::ResolveSystemError, code, ::gai_strerror(code)});
 
         case EAI_BADFLAGS:
         case EAI_FAMILY:
@@ -54,7 +53,7 @@ zportal::Result<zportal::SockAddress> zportal::resolve(const Address& address) n
         resolved = SockAddress::from_sockaddr(result->ai_addr, result->ai_addrlen);
     } catch (...) {
         ::freeaddrinfo(result);
-        return Fail(Error{ErrorCode::Exception, "", 0, std::current_exception()});
+        return Fail(ErrorCode::AddressParseFailed);
     }
 
     ::freeaddrinfo(result);

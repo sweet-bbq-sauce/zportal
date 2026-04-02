@@ -20,7 +20,7 @@ class Tunnel {
     Tunnel(const Tunnel&) = delete;
     Tunnel& operator=(const Tunnel&) = delete;
 
-    Error run() noexcept;
+    Result<void> run();
     void close(Error reason = {}) noexcept;
 
   private:

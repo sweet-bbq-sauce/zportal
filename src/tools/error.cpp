@@ -117,7 +117,9 @@ std::string zportal::Error::to_string() const {
             break;
         }
 
+        case ErrorDomain::None:
         default:
+            out << "";
         }
 
         out << " Code: " << static_cast<std::uint32_t>(code_);

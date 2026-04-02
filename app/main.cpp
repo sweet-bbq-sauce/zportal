@@ -67,8 +67,8 @@ int main(int argn, char* argv[]) {
     zportal::Tunnel tunnel(std::move(ring), std::move(tun), std::move(sock), cfg);
 
     const auto run_result = tunnel.run();
-    if (run_result)
-        end_with_error(run_result);
+    if (!run_result)
+        end_with_error(run_result.error());
 
     std::cout << "Exiting ..." << std::endl;
     return result ? EXIT_FAILURE : EXIT_SUCCESS;

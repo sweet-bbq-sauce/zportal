@@ -7,29 +7,23 @@
 #include <zportal/net/connection.hpp>
 #include <zportal/tools/error.hpp>
 
-static const auto socket_recv = [](zportal::Socket& socket, std::span<std::uint8_t> data) -> zportal::Error {
+static const auto socket_recv = [](zportal::Socket& socket, std::span<std::uint8_t> data) -> zportal::Result<void> {
     if (data.empty())
         return {};
 
     if (!socket)
-        return zportal::Error{zportal::ErrorCode::InvalidSocket};
+        return zportal::Fail(zportal::ErrorCode::InvalidSocket);
 
     std::size_t processed{};
     while (processed < data.size()) {
         const ssize_t n = ::recv(socket.get(), data.data() + processed, data.size() - processed, 0);
         if (n == 0) {
             socket.close();
-            return zportal::Error{zportal::ErrorCode::SocksPeerClosed};
+            return zportal::Fail(zportal::ErrorCode::PeerClosed);
         } else if (n < 0) {
-            const auto err = errno;
-            if (err == EINTR)
-                continue;
-
-            else if (err == EAGAIN || err == EWOULDBLOCK)
-                return zportal::Error{zportal::ErrorCode::SocksRecvTimeout};
-
-            socket.close();
-            return zportal::Error{zportal::ErrorCode::SocksErrno, "", err};
+            // const auto err = errno;
+            // socket.close();
+            return zportal::Fail({zportal::ErrorCode::RecvFailed, errno});
         }
 
         processed += static_cast<std::size_t>(n);
@@ -38,29 +32,23 @@ static const auto socket_recv = [](zportal::Socket& socket, std::span<std::uint8
     return {};
 };
 
-static const auto socket_send = [](zportal::Socket& socket, std::span<const std::uint8_t> data) -> zportal::Error {
+static const auto socket_send = [](zportal::Socket& socket,
+                                   std::span<const std::uint8_t> data) -> zportal::Result<void> {
     if (data.empty())
         return {};
 
     if (!socket)
-        return zportal::Error{zportal::ErrorCode::InvalidSocket};
+        return zportal::Fail(zportal::ErrorCode::InvalidSocket);
 
     std::size_t processed{};
     while (processed < data.size()) {
         const ssize_t n = ::send(socket.get(), data.data() + processed, data.size() - processed, MSG_NOSIGNAL);
         if (n == 0) {
-            socket.close();
-            return zportal::Error{zportal::ErrorCode::SendFailed};
+            // socket.close();
+            return zportal::Fail(zportal::ErrorCode::SendReturnedZero);
         } else if (n < 0) {
-            const auto err = errno;
-            if (err == EINTR)
-                continue;
-
-            else if (err == EAGAIN || err == EWOULDBLOCK)
-                return zportal::Error{zportal::ErrorCode::SocksSendTimeout};
-
-            socket.close();
-            return zportal::Error{zportal::ErrorCode::SocksErrno, "", err};
+            // socket.close();
+            return zportal::Fail({zportal::ErrorCode::SendFailed, errno});
         }
 
         processed += static_cast<std::size_t>(n);
@@ -69,20 +57,27 @@ static const auto socket_send = [](zportal::Socket& socket, std::span<const std:
     return {};
 };
 
-zportal::Error zportal::socks5_connect(Socket& socket, const Address& address) noexcept {
+zportal::Result<void> zportal::socks5_connect(Socket& socket, const Address& address) noexcept {
     if (std::holds_alternative<HostPair>(address) && std::get<HostPair>(address).hostname.size() > 255)
-        return Error{ErrorCode::SocksHostnameTooLong};
+        return Fail(ErrorCode::SocksHostnameTooLong);
 
     // Auth method negotiation
     static const std::array<std::uint8_t, 3> method_request = {0x05, 0x01, 0x00}; // "no auth" only
     std::array<std::uint8_t, 2> method_response;
-    socket_send(socket, method_request);
-    socket_recv(socket, method_response);
+
+    Result<void> io_result;
+    io_result = socket_send(socket, method_request);
+    if (!io_result)
+        return io_result;
+
+    io_result = socket_recv(socket, method_response);
+    if (!io_result)
+        return io_result;
 
     if (method_response[1] == 0xFF)
-        return Error{ErrorCode::SocksAuthMethodUnsupported};
+        return Fail(ErrorCode::SocksAuthMethodUnsupported);
     if (method_response[1] != 0x00)
-        return Error{ErrorCode::SocksAuthMethodUnsupported};
+        return Fail(ErrorCode::SocksAuthMethodUnsupported);
 
     // CONNECT command
     std::size_t connect_request_length{};
@@ -118,17 +113,21 @@ zportal::Error zportal::socks5_connect(Socket& socket, const Address& address) n
 
             connect_request_length = 4 + 16 + 2;
         } else
-            return Error{ErrorCode::SocksUnsupportedFamily};
+            return Fail(ErrorCode::SocksUnsupportedTargetFamily);
     }
 
-    socket_send(socket, {connect_request.data(), connect_request_length});
+    io_result = socket_send(socket, {connect_request.data(), connect_request_length});
+    if (!io_result)
+        return io_result;
 
     std::array<std::uint8_t, 4> command_response;
     std::array<std::uint8_t, 1 + 255 + 2> hole_for_response_address;
-    socket_recv(socket, command_response);
+    io_result = socket_recv(socket, command_response);
+    if (!io_result)
+        return io_result;
 
     if (command_response[1] != 0x00)
-        return Error{ErrorCode::SocksConnectFailed};
+        return Fail(ErrorCode::SocksConnectFailed);
 
     std::size_t response_address_length{};
     if (command_response[3] == 0x01)
@@ -137,12 +136,17 @@ zportal::Error zportal::socks5_connect(Socket& socket, const Address& address) n
         response_address_length = 16 + 2;
     else if (command_response[3] == 0x03) {
         std::uint8_t len;
-        socket_recv(socket, {&len, sizeof(len)});
+        io_result = socket_recv(socket, {&len, sizeof(len)});
+        if (!io_result)
+            return io_result;
+
         response_address_length = len + 2;
     } else
-        return Error{ErrorCode::SocksUnsupportedFamily};
+        return Fail(ErrorCode::SocksUnsupportedTargetFamily);
 
-    socket_recv(socket, {hole_for_response_address.data(), response_address_length});
+    io_result = socket_recv(socket, {hole_for_response_address.data(), response_address_length});
+    if (!io_result)
+        return io_result;
 
     return {};
 };

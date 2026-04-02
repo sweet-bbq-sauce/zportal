@@ -3,6 +3,7 @@
 #include <sys/socket.h>
 
 #include <zportal/net/address.hpp>
+#include <zportal/tools/error.hpp>
 #include <zportal/tools/file_descriptor.hpp>
 
 namespace zportal {
@@ -26,14 +27,14 @@ class Socket {
     [[nodiscard]] bool is_valid() const noexcept;
     [[nodiscard]] explicit operator bool() const noexcept;
 
-    [[nodiscard]] SockAddress get_local_address() const;
-    [[nodiscard]] SockAddress get_remote_address() const;
+    [[nodiscard]] Result<SockAddress> get_local_address() const noexcept;
+    [[nodiscard]] Result<SockAddress> get_remote_address() const noexcept;
 
     [[nodiscard]] sa_family_t get_family() const noexcept;
 
-    [[nodiscard]] static Socket create_socket(sa_family_t family, int flags = 0);
+    [[nodiscard]] static Result<Socket> create_socket(sa_family_t family, int flags = 0) noexcept;
 
-    sa_family_t detect_family() const;
+    Result<sa_family_t> detect_family() const noexcept;
 
   private:
     FileDescriptor fd_;

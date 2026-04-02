@@ -12,14 +12,15 @@ zportal::Result<zportal::Socket> zportal::connect_to(const Address& target,
 
     const Address& first = proxies.empty() ? target : proxies.front();
     const auto result = resolve(first);
-
     if (!result)
         return Fail(result.error());
 
     const auto& address = *result;
+    auto sock = Socket::create_socket(address.family());
+    if (!sock)
+        return Fail(sock.error());
 
-    Socket sock = Socket::create_socket(address.family());
-    if (::connect(sock.get(), address.get(), address.length()) != 0)
+    if (::connect((*sock).get(), address.get(), address.length()) != 0)
         return Fail(ErrorCode::ConnectFailed);
 
     if (proxies.empty())
@@ -27,7 +28,8 @@ zportal::Result<zportal::Socket> zportal::connect_to(const Address& target,
 
     for (auto it = proxies.begin(); it != proxies.end(); it++) {
         const auto& next = std::next(it) == proxies.end() ? target : *std::next(it);
-        socks5_connect(sock, next);
+        if (const auto socks_result = socks5_connect(*sock, next); !socks_result)
+            return Fail(socks_result.error());
     }
 
     return sock;

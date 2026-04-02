@@ -21,6 +21,8 @@ enum class ErrorCode : std::uint32_t {
     // Socket errors
     InvalidSocket = 0x200,
     PeerClosed,
+    SocketCreateFailed,
+    InvalidSocketFamily,
     ConnectFailed,
     BindFailed,
     ListenFailed,
@@ -28,6 +30,9 @@ enum class ErrorCode : std::uint32_t {
     SendFailed,
     RecvFailed,
     SetSockOptFailed,
+    GetSockNameFailed,
+    GetPeerNameFailed,
+    SendReturnedZero,
 
     // TUN errors
     TunOpenFailed = 0x300,
@@ -50,6 +55,7 @@ enum class ErrorCode : std::uint32_t {
     RecvCqeMissingBid,
     SendCqeWithoutFrameId,
     WriteUnknownFrameId,
+    AddressParseFailed,
 
     // SOCKS5 errors
     SocksHostnameTooLong = 0x700,

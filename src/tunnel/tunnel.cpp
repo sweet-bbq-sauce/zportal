@@ -1,4 +1,3 @@
-#include <exception>
 #include <utility>
 #include <vector>
 
@@ -51,7 +50,7 @@ void zportal::Tunnel::close(zportal::Error reason) noexcept {
     closing_ = true;
 }
 
-zportal::Error zportal::Tunnel::run() noexcept {
+zportal::Result<void> zportal::Tunnel::run() {
 
     sigset_t mask;
     sigemptyset(&mask);
@@ -127,141 +126,139 @@ zportal::Error zportal::Tunnel::run() noexcept {
         return false;
     };
 
-    try {
-        arm_read();
-        arm_recv();
-        arm_signal();
+    arm_read();
+    arm_recv();
+    arm_signal();
 
-        if (!closing_)
-            ring_.submit();
+    if (!closing_)
+        ring_.submit();
 
-        while (!closing_) {
-            const Cqe cqe{ring_.wait_cqe()};
-            const Operation op{cqe.get_data64()};
-            const int result = cqe.get_result();
+    while (!closing_) {
+        const Cqe cqe{ring_.wait_cqe()};
+        const Operation op{cqe.get_data64()};
+        const int result = cqe.get_result();
 
-            switch (op.get_type()) {
-            case Operation::Type::SIGNAL: {
-                close(Error(ErrorCode::Shutdown));
-                break;
-            }
+        switch (op.get_type()) {
+        case Operation::Type::SIGNAL: {
+            close();
+            break;
+        }
 
-            case Operation::Type::RECV: {
-                if (result == 0)
-                    close(Error(ErrorCode::PeerClosed));
-                else if (result < 0) {
-                    close(Error(ErrorCode::RecvFailed, {}, -result));
-                    if (-result == ENOBUFS) {
-                        peer_.br.flush_returns();
-                        tun_br_.flush_returns();
-                    }
-
-                    if (!closing_ && maybe_rearm_multishot(op.get_type(), cqe))
-                        ring_.submit();
-                } else {
-                    if (!support_check::recv_multishot())
-                        arm_recv();
-                    else
-                        maybe_rearm_multishot(op.get_type(), cqe);
+        case Operation::Type::RECV: {
+            if (result == 0)
+                close(Error(ErrorCode::PeerClosed));
+            else if (result < 0) {
+                close({ErrorCode::RecvFailed, -result});
+                if (-result == ENOBUFS) {
+                    peer_.br.flush_returns();
+                    tun_br_.flush_returns();
                 }
 
-                if (closing_)
-                    break;
-
-                const auto bid = cqe.get_buffer_id();
-                if (!bid) {
-                    close(Error(ErrorCode::RecvCqeMissingBid));
-                    break;
-                }
-
-                const auto parser_result = peer_.parser.push_buffer(*bid, static_cast<std::size_t>(result));
-                if (parser_result) {
-                    close(Error(parser_result));
-                    break;
-                }
-
-                while (const auto frame = peer_.parser.get_frame())
-                    tun_write_queue_.push_back(*frame);
-
-                kick_write_();
-            } break;
-
-            case Operation::Type::WRITE: {
-                if (result < 0) {
-                    close(Error(ErrorCode::TunWriteFailed, {}, -result));
-                    break;
-                }
-
-                Frame* frame = peer_.parser.get_frame_by_fd(op.get_bid());
-                if (!frame) {
-                    close(Error(ErrorCode::WriteUnknownFrameId));
-                    break;
-                }
-
-                const std::size_t expected = frame_size_bytes(*frame);
-                if (static_cast<std::size_t>(result) != expected) {
-                    close(Error(ErrorCode::TunWriteFailed, "Partial write"));
-                    break;
-                }
-
-                peer_.parser.free_frame(op.get_bid());
-                peer_.br.flush_returns();
-                write_inprogress = false;
-                kick_write_();
-            } break;
-
-            case Operation::Type::READ: {
-                if (!support_check::read_multishot())
-                    arm_read();
+                if (!closing_ && maybe_rearm_multishot(op.get_type(), cqe))
+                    ring_.submit();
+            } else {
+                if (!support_check::recv_multishot())
+                    arm_recv();
                 else
                     maybe_rearm_multishot(op.get_type(), cqe);
-
-                if (closing_)
-                    break;
-
-                const auto bid = cqe.get_buffer_id();
-                if (!bid) {
-                    close(Error(ErrorCode::RecvCqeMissingBid));
-                    break;
-                }
-
-                const std::byte* ptr = tun_br_.buffer_ptr(*bid);
-                std::vector<std::byte> buffer{ptr, ptr + static_cast<std::size_t>(result)};
-                tun_br_.return_buffer(*bid);
-                tun_br_.flush_returns();
-
-                peer_.out_queue.emplace_back(std::move(buffer));
-                kick_send_();
-            } break;
-
-            case Operation::Type::SEND: {
-                if (peer_.out_queue.empty()) {
-                    close(Error(ErrorCode::SendCqeWithoutFrameId));
-                    break;
-                }
-
-                auto& frame = peer_.out_queue.front();
-                frame.advance(static_cast<std::size_t>(result));
-                if (frame.complete())
-                    peer_.out_queue.pop_front();
-
-                send_inprogress = false;
-                kick_send_();
-            } break;
-
-            default:
-                continue;
             }
 
             if (closing_)
                 break;
+
+            const auto bid = cqe.get_buffer_id();
+            if (!bid) {
+                close(Error(ErrorCode::RecvCqeMissingBid));
+                break;
+            }
+
+            const auto parser_result = peer_.parser.push_buffer(*bid, static_cast<std::size_t>(result));
+            if (parser_result) {
+                close(Error(parser_result));
+                break;
+            }
+
+            while (const auto frame = peer_.parser.get_frame())
+                tun_write_queue_.push_back(*frame);
+
+            kick_write_();
+        } break;
+
+        case Operation::Type::WRITE: {
+            if (result < 0) {
+                close({ErrorCode::TunWriteFailed, -result});
+                break;
+            }
+
+            Frame* frame = peer_.parser.get_frame_by_fd(op.get_bid());
+            if (!frame) {
+                close(Error(ErrorCode::WriteUnknownFrameId));
+                break;
+            }
+
+            const std::size_t expected = frame_size_bytes(*frame);
+            if (static_cast<std::size_t>(result) != expected) {
+                close(ErrorCode::TunPartialWrite);
+                break;
+            }
+
+            peer_.parser.free_frame(op.get_bid());
+            peer_.br.flush_returns();
+            write_inprogress = false;
+            kick_write_();
+        } break;
+
+        case Operation::Type::READ: {
+            if (!support_check::read_multishot())
+                arm_read();
+            else
+                maybe_rearm_multishot(op.get_type(), cqe);
+
+            if (closing_)
+                break;
+
+            const auto bid = cqe.get_buffer_id();
+            if (!bid) {
+                close(Error(ErrorCode::RecvCqeMissingBid));
+                break;
+            }
+
+            const std::byte* ptr = tun_br_.buffer_ptr(*bid);
+            std::vector<std::byte> buffer{ptr, ptr + static_cast<std::size_t>(result)};
+            tun_br_.return_buffer(*bid);
+            tun_br_.flush_returns();
+
+            peer_.out_queue.emplace_back(std::move(buffer));
+            kick_send_();
+        } break;
+
+        case Operation::Type::SEND: {
+            if (peer_.out_queue.empty()) {
+                close(Error(ErrorCode::SendCqeWithoutFrameId));
+                break;
+            }
+
+            auto& frame = peer_.out_queue.front();
+            frame.advance(static_cast<std::size_t>(result));
+            if (frame.complete())
+                peer_.out_queue.pop_front();
+
+            send_inprogress = false;
+            kick_send_();
+        } break;
+
+        default:
+            continue;
         }
 
-    } catch (...) {
-        close(Error(ErrorCode::Exception, {}, 0, std::current_exception()));
+        if (closing_)
+            break;
     }
 
-    return close_reason_;
+    if (close_reason_)
+        return Fail(close_reason_);
+
+    return {};
 }
 
 void zportal::Tunnel::kick_send_() {

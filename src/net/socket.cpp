@@ -1,5 +1,3 @@
-#include <stdexcept>
-#include <system_error>
 #include <utility>
 
 #include <cerrno>
@@ -8,6 +6,7 @@
 
 #include <zportal/net/address.hpp>
 #include <zportal/net/socket.hpp>
+#include <zportal/tools/error.hpp>
 #include <zportal/tools/file_descriptor.hpp>
 
 zportal::Socket::Socket(Socket&& other) noexcept
@@ -49,52 +48,56 @@ zportal::Socket::operator bool() const noexcept {
     return is_valid();
 }
 
-zportal::Socket zportal::Socket::create_socket(sa_family_t family, int flags) {
+zportal::Result<zportal::Socket> zportal::Socket::create_socket(sa_family_t family, int flags) noexcept {
     if (family != AF_INET && family != AF_INET6 && family != AF_UNIX)
-        throw std::invalid_argument("unsupported family type");
+        return Fail(ErrorCode::InvalidSocketFamily);
 
     const int fd = ::socket(family, SOCK_STREAM | flags, 0);
     if (fd < 0)
-        throw std::system_error(errno, std::generic_category(), "socket");
+        return Fail({ErrorCode::SocketCreateFailed, errno});
 
     return Socket(fd, family);
 }
 
 zportal::Socket::Socket(int fd, sa_family_t family) : fd_(fd), family_(family) {}
 
-zportal::SockAddress zportal::Socket::get_local_address() const {
+zportal::Result<zportal::SockAddress> zportal::Socket::get_local_address() const noexcept {
     if (!is_valid())
-        throw std::logic_error("socket is invalid");
+        return Fail(ErrorCode::InvalidSocket);
 
     sockaddr_storage ss{};
     socklen_t len = sizeof(ss);
 
     if (::getsockname(fd_.get(), reinterpret_cast<sockaddr*>(&ss), &len) < 0)
-        throw std::system_error(errno, std::generic_category(), "getsockname");
+        return Fail({ErrorCode::GetSockNameFailed, errno});
 
     return SockAddress::from_sockaddr(reinterpret_cast<const sockaddr*>(&ss), len);
 }
 
-zportal::SockAddress zportal::Socket::get_remote_address() const {
+zportal::Result<zportal::SockAddress> zportal::Socket::get_remote_address() const noexcept {
     if (!is_valid())
-        throw std::logic_error("socket is invalid");
+        return Fail(ErrorCode::InvalidSocket);
 
     sockaddr_storage ss{};
     socklen_t len = sizeof(ss);
 
     if (::getpeername(fd_.get(), reinterpret_cast<sockaddr*>(&ss), &len) < 0)
-        throw std::system_error(errno, std::generic_category(), "getpeername");
+        return Fail({ErrorCode::GetPeerNameFailed, errno});
 
     return SockAddress::from_sockaddr(reinterpret_cast<const sockaddr*>(&ss), len);
 }
 
-sa_family_t zportal::Socket::detect_family() const {
+zportal::Result<sa_family_t> zportal::Socket::detect_family() const noexcept {
     if (!is_valid())
-        throw std::logic_error("socket is invalid");
+        return Fail(ErrorCode::InvalidSocket);
 
     if (family_ != AF_UNSPEC)
         return family_;
 
-    family_ = get_local_address().family();
+    const auto result = get_local_address();
+    if (!result)
+        return Fail(result.error());
+
+    family_ = (*result).family();
     return family_;
 }

@@ -11,17 +11,17 @@ zportal::Result<zportal::Socket> zportal::create_listener(const Address& address
         return Fail(result.error());
 
     const auto& resolved = *result;
-    Socket sock = Socket::create_socket(resolved.family());
+    auto sock = Socket::create_socket(resolved.family());
 
     const int yes = 1;
-    if (::setsockopt(sock.get(), SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) != 0)
-        return Fail(Error{ErrorCode::SetSockOptFailed, "", errno});
+    if (::setsockopt((*sock).get(), SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) != 0)
+        return Fail({ErrorCode::SetSockOptFailed, errno});
 
-    if (::bind(sock.get(), resolved.get(), resolved.length()) != 0)
-        return Fail(Error{ErrorCode::BindFailed, "", errno});
+    if (::bind((*sock).get(), resolved.get(), resolved.length()) != 0)
+        return Fail({ErrorCode::BindFailed, errno});
 
-    if (::listen(sock.get(), 1) != 0)
-        return Fail(Error{ErrorCode::ListenFailed, "", errno});
+    if (::listen((*sock).get(), 1) != 0)
+        return Fail({ErrorCode::ListenFailed, errno});
 
     return sock;
 }
@@ -35,7 +35,7 @@ std::expected<zportal::Socket, zportal::Error> zportal::accept_from(const Socket
 
     const int clientfd = ::accept4(listener.get(), reinterpret_cast<sockaddr*>(&addr), &len, SOCK_CLOEXEC);
     if (clientfd < 0)
-        return Fail(Error{ErrorCode::AcceptFailed, "", errno});
+        return Fail({ErrorCode::AcceptFailed, errno});
 
     return Socket(clientfd);
 }
