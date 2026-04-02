@@ -15,6 +15,7 @@
 #include <zportal/tools/config.hpp>
 #include <zportal/tools/debug.hpp>
 #include <zportal/tools/error.hpp>
+#include <zportal/tools/probe.hpp>
 #include <zportal/tunnel/frame/header.hpp>
 #include <zportal/tunnel/frame/parser.hpp>
 #include <zportal/tunnel/operation.hpp>

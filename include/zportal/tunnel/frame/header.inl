@@ -10,7 +10,7 @@
 
 #include <endian.h>
 
-#include "header.hpp"
+#include <zportal/tunnel/frame/header.hpp>
 
 namespace zportal {
 

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "frame.hpp"
+#include <zportal/tunnel/frame/frame.hpp>
 
 namespace zportal {
 

@@ -1,14 +1,10 @@
-#pragma once
-
 #include <liburing.h>
 
 #include <zportal/tools/probe.hpp>
 #include <zportal/tunnel/peer.hpp>
 #include <zportal/tunnel/submission.hpp>
 
-namespace zportal {
-
-inline void prepare_read(io_uring_sqe* sqe, const Operation& op, int fd, std::uint16_t bid) noexcept {
+void zportal::prepare_read(io_uring_sqe* sqe, const Operation& op, int fd, std::uint16_t bid) noexcept {
 #if HAVE_IO_URING_PREP_READ_MULTISHOT
     if (support_check::read_multishot())
         ::io_uring_prep_read_multishot(sqe, fd, 0, -1, bid);
@@ -26,7 +22,7 @@ inline void prepare_read(io_uring_sqe* sqe, const Operation& op, int fd, std::ui
     ::io_uring_sqe_set_data64(sqe, op.serialize());
 }
 
-inline void prepare_recv(io_uring_sqe* sqe, const Operation& op, int fd, std::uint16_t bid) noexcept {
+void zportal::prepare_recv(io_uring_sqe* sqe, const Operation& op, int fd, std::uint16_t bid) noexcept {
     if (support_check::recv_multishot())
         ::io_uring_prep_recv_multishot(sqe, fd, nullptr, 0, 0);
     else
@@ -37,5 +33,3 @@ inline void prepare_recv(io_uring_sqe* sqe, const Operation& op, int fd, std::ui
 
     ::io_uring_sqe_set_data64(sqe, op.serialize());
 }
-
-} // namespace zportal

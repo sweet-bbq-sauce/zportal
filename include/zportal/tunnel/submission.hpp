@@ -14,5 +14,3 @@ void prepare_read(io_uring_sqe* sqe, const Operation& op, int fd, std::uint16_t 
 void prepare_recv(io_uring_sqe* sqe, const Operation& op, int fd, std::uint16_t bid) noexcept;
 
 } // namespace zportal
-
-#include <zportal/tunnel/submission.inl>
