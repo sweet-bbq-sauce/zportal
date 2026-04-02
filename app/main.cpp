@@ -1,4 +1,3 @@
-#include "zportal/tools/error.hpp"
 #include <exception>
 #include <iostream>
 #include <stdexcept>
@@ -9,6 +8,7 @@
 #include <zportal/net/socket.hpp>
 #include <zportal/net/tun.hpp>
 #include <zportal/tools/config.hpp>
+#include <zportal/tools/error.hpp>
 #include <zportal/tunnel/tunnel.hpp>
 
 [[noreturn]] void end_with_error(const zportal::Error& err) noexcept {
@@ -69,7 +69,6 @@ int main(int argn, char* argv[]) {
     const auto run_result = tunnel.run();
     if (run_result)
         end_with_error(run_result);
-        
 
     std::cout << "Exiting ..." << std::endl;
     return result ? EXIT_FAILURE : EXIT_SUCCESS;

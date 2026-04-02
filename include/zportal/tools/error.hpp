@@ -1,6 +1,5 @@
 #pragma once
 
-#include <exception>
 #include <expected>
 #include <source_location>
 #include <string>
@@ -13,7 +12,6 @@ enum class ErrorDomain { None, Protocol, Socket, Tun, IoUring, Resource, Interna
 
 enum class ErrorCode : std::uint32_t {
     None = 0x000,
-    Shutdown,
 
     // Protocol errors
     InvalidMagic = 0x100,
@@ -21,47 +19,43 @@ enum class ErrorCode : std::uint32_t {
     CrcMismatch,
 
     // Socket errors
-    PeerClosed = 0x200,
-    InvalidSocket,
+    InvalidSocket = 0x200,
+    PeerClosed,
     ConnectFailed,
-    SendFailed,
-    RecvFailed,
-    SocketInterrupted,
     BindFailed,
     ListenFailed,
-    SetSockOptFailed,
     AcceptFailed,
+    SendFailed,
+    RecvFailed,
+    SetSockOptFailed,
 
     // TUN errors
     TunOpenFailed = 0x300,
     TunReadFailed,
     TunWriteFailed,
-    TunInterrupted,
+    TunPartialWrite,
+    TunIoctlFailed,
+    TunNameToIndexFailed,
 
-    // IOUring errors
+    // io_uring errors
     RingSubmitFailed = 0x400,
     RingWaitFailed,
 
     // Resource errors
     NotEnoughMemory = 0x500,
-    MissingSqe,
+    NotEnoughSqe,
 
     // Internal errors
-    Exception = 0x600,
-    RecvParserError,
+    RecvParserError = 0x600,
     RecvCqeMissingBid,
     SendCqeWithoutFrameId,
     WriteUnknownFrameId,
 
     // SOCKS5 errors
-    SocksPeerClosed = 0x700,
-    SocksHostnameTooLong,
-    SocksRecvTimeout,
-    SocksSendTimeout,
+    SocksHostnameTooLong = 0x700,
     SocksConnectFailed,
-    SocksUnsupportedFamily,
+    SocksUnsupportedTargetFamily,
     SocksAuthMethodUnsupported,
-    SocksErrno,
 
     // DNS resolving errors
     ResolveNotFound = 0x800,
@@ -74,19 +68,19 @@ enum class ErrorCode : std::uint32_t {
 class Error {
   public:
     Error() = default;
-    explicit Error(ErrorCode code, const char* message = nullptr, int sys_errno = 0,
-                   std::exception_ptr exception = nullptr,
-                   std::source_location where = std::source_location::current());
+    Error(ErrorCode code, int sys_errno = 0, const char* message = nullptr,
+          std::source_location where = std::source_location::current());
 
-    ErrorDomain get_domain() const noexcept;
-    ErrorCode get_code() const noexcept;
+    ErrorDomain domain() const noexcept;
+    ErrorCode code() const noexcept;
 
-    const char* get_message() const noexcept;
-    int get_errno() const noexcept;
-    std::exception_ptr get_exception() const noexcept;
+    const char* message() const noexcept;
+    int sys_errno() const noexcept;
     std::source_location where() const;
 
+    bool ok() const noexcept;
     explicit operator bool() const noexcept;
+
     bool operator==(const Error& e) const noexcept;
     bool operator==(ErrorCode code) const noexcept;
 
@@ -96,7 +90,6 @@ class Error {
     ErrorCode code_{ErrorCode::None};
     const char* message_{};
     int sys_errno_{};
-    std::exception_ptr exception_{};
     std::source_location where_{std::source_location::current()};
 };
 

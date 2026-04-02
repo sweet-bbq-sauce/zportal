@@ -1,4 +1,3 @@
-#include <exception>
 #include <source_location>
 #include <sstream>
 #include <string>
@@ -7,55 +6,59 @@
 
 #include <zportal/tools/error.hpp>
 
-zportal::Error::Error(ErrorCode code, const char* message, int sys_errno, std::exception_ptr exception,
-                      std::source_location where)
-    : code_(code), message_(message), sys_errno_(sys_errno), exception_(exception), where_(where) {}
+zportal::Error::Error(ErrorCode code, int sys_errno, const char* message, std::source_location where)
+    : code_(code), sys_errno_(sys_errno), message_(message), where_(where) {}
 
-zportal::ErrorDomain zportal::Error::get_domain() const noexcept {
-    const std::uint32_t value = static_cast<std::uint32_t>(code_);
+zportal::ErrorDomain zportal::Error::domain() const noexcept {
+    const auto domain = static_cast<std::uint32_t>(code_) & 0xF00;
 
-    if (value >= 0x800)
-        return ErrorDomain::Resolve;
-    else if (value >= 0x700)
-        return ErrorDomain::Socks;
-    else if (value >= 0x600)
-        return ErrorDomain::Internal;
-    else if (value >= 0x500)
-        return ErrorDomain::Resource;
-    else if (value >= 0x400)
-        return ErrorDomain::IoUring;
-    else if (value >= 0x300)
-        return ErrorDomain::Tun;
-    else if (value >= 0x200)
-        return ErrorDomain::Socket;
-    else if (value >= 0x100)
+    switch (domain) {
+    case 0x000:
+        return ErrorDomain::None;
+    case 0x100:
         return ErrorDomain::Protocol;
+    case 0x200:
+        return ErrorDomain::Socket;
+    case 0x300:
+        return ErrorDomain::Tun;
+    case 0x400:
+        return ErrorDomain::IoUring;
+    case 0x500:
+        return ErrorDomain::Resource;
+    case 0x600:
+        return ErrorDomain::Internal;
+    case 0x700:
+        return ErrorDomain::Socks;
+    case 0x800:
+        return ErrorDomain::Resolve;
 
-    return ErrorDomain::None;
+    default:
+        return ErrorDomain::Internal;
+    }
 }
 
-zportal::ErrorCode zportal::Error::get_code() const noexcept {
+zportal::ErrorCode zportal::Error::code() const noexcept {
     return code_;
 }
 
-const char* zportal::Error::get_message() const noexcept {
+const char* zportal::Error::message() const noexcept {
     return message_;
 }
 
-int zportal::Error::get_errno() const noexcept {
+int zportal::Error::sys_errno() const noexcept {
     return sys_errno_;
-}
-
-std::exception_ptr zportal::Error::get_exception() const noexcept {
-    return exception_;
 }
 
 std::source_location zportal::Error::where() const {
     return where_;
 }
 
+bool zportal::Error::ok() const noexcept {
+    return code() == ErrorCode::None;
+}
+
 zportal::Error::operator bool() const noexcept {
-    return code_ != ErrorCode::None && code_ != ErrorCode::Shutdown;
+    return !ok();
 }
 
 bool zportal::Error::operator==(const Error& e) const noexcept {
@@ -69,197 +72,66 @@ bool zportal::Error::operator==(ErrorCode code) const noexcept {
 std::string zportal::Error::to_string() const {
     std::ostringstream out;
 
-    const auto domain = get_domain();
-    switch (domain) {
-    case ErrorDomain::None:
-        break;
-
-    case ErrorDomain::Protocol: {
-        out << "Protocol";
-        break;
-    }
-
-    case ErrorDomain::Socket: {
-        out << "Socket";
-        break;
-    }
-
-    case ErrorDomain::Tun: {
-        out << "TUN device";
-        break;
-    }
-
-    case ErrorDomain::IoUring: {
-        out << "IOUring";
-        break;
-    }
-
-    case ErrorDomain::Resource: {
-        out << "Resource";
-        break;
-    }
-
-    case ErrorDomain::Socks: {
-        out << "Socks";
-        break;
-    }
-
-    case ErrorDomain::Resolve: {
-        out << "DNS resolving";
-        break;
-    }
-
-    case ErrorDomain::Internal:
-    default:
-        out << "Internal";
-    }
-
-    if (domain != ErrorDomain::None)
-        out << ": ";
-
-    switch (code_) {
-    case ErrorCode::None: {
+    if (ok()) {
         out << "OK";
-        break;
-    }
-
-    case ErrorCode::Shutdown: {
-        out << "Shutdown";
-        break;
-    }
-
-    // Protocol errors
-    case ErrorCode::InvalidMagic: {
-        out << "Invalid magic number";
-        break;
-    }
-
-    case ErrorCode::InvalidSize: {
-        out << "Invalid frame size";
-        break;
-    }
-
-    case ErrorCode::CrcMismatch: {
-        out << "Frame CRC mismatch";
-        break;
-    }
-
-    // Socket errors
-    case ErrorCode::PeerClosed: {
-        out << "Peer closed";
-        break;
-    }
-
-    case ErrorCode::ConnectFailed: {
-        out << "Connect failed";
-        break;
-    }
-
-    case ErrorCode::SendFailed: {
-        out << "Send failed";
-        break;
-    }
-
-    case ErrorCode::RecvFailed: {
-        out << "Recv failed";
-        break;
-    }
-
-    case ErrorCode::SocketInterrupted: {
-        out << "Interrupted";
-        break;
-    }
-
-    // TUN errors
-    case ErrorCode::TunOpenFailed: {
-        out << "Open failed";
-        break;
-    }
-
-    case ErrorCode::TunReadFailed: {
-        out << "Read failed";
-        break;
-    }
-
-    case ErrorCode::TunWriteFailed: {
-        out << "Write failed";
-        break;
-    }
-
-    case ErrorCode::TunInterrupted: {
-        out << "Interrupted";
-        break;
-    }
-
-    // IOUring errors
-    case ErrorCode::RingSubmitFailed: {
-        out << "Submit failed";
-        break;
-    }
-
-    case ErrorCode::RingWaitFailed: {
-        out << "Wait failed";
-        break;
-    }
-
-    // Resource errors
-    case ErrorCode::NotEnoughMemory: {
-        out << "Not enough memory";
-        break;
-    }
-
-    case ErrorCode::MissingSqe: {
-        out << "Missing SQE";
-        break;
-    }
-
-    // Internal errors
-    case ErrorCode::Exception: {
-        const auto e = get_exception();
-        if (e) {
-            try {
-                std::rethrow_exception(e);
-            } catch (const std::exception& e) {
-                out << e.what();
-            } catch (...) {
-                out << "Unknown";
-            }
-        } else {
-            out << "Unknown";
+    } else {
+        out << "Domain: ";
+        switch (domain()) {
+        case ErrorDomain::Protocol: {
+            out << "Protocol";
+            break;
         }
-        break;
+
+        case ErrorDomain::Socket: {
+            out << "Socket";
+            break;
+        }
+
+        case ErrorDomain::Tun: {
+            out << "TUN device";
+            break;
+        }
+
+        case ErrorDomain::IoUring: {
+            out << "io_uring";
+            break;
+        }
+
+        case ErrorDomain::Resource: {
+            out << "Resources";
+            break;
+        }
+
+        case ErrorDomain::Internal: {
+            out << "Internal";
+            break;
+        }
+
+        case ErrorDomain::Socks: {
+            out << "Socks5";
+            break;
+        }
+
+        case ErrorDomain::Resolve: {
+            out << "DNS resolving";
+            break;
+        }
+
+        default:
+        }
+
+        out << " Code: " << static_cast<std::uint32_t>(code_);
+
+        if (sys_errno_ > 0)
+            out << " Errno: " << sys_errno_;
     }
 
-    case ErrorCode::RecvParserError: {
-        out << "RX parser error";
-        break;
-    }
-
-    case ErrorCode::RecvCqeMissingBid: {
-        out << "Recv CQE has no BID";
-        break;
-    }
-
-    case ErrorCode::SendCqeWithoutFrameId: {
-        out << "Send with empty TX queue";
-        break;
-    }
-
-    case ErrorCode::WriteUnknownFrameId: {
-        out << "Invalid frame ID to send";
-        break;
-    }
-    }
-
-    if (sys_errno_ > 0)
-        out << " errno: " << sys_errno_;
-
-    if (message_)
-        out << " \"" << message_ << "\"";
+    if (message_ && *message_)
+        out << " Message:" << message_;
 
 #if !defined(NDEBUG)
-    out << " [" << where_.file_name() << "(" << where_.line() << ":" << where_.column() << ") in `"
-        << where_.function_name() << "`]";
+    out << " [" << where_.file_name() << " (" << where_.line() << ":" << where_.column() << ") in "
+        << where_.function_name() << "]";
 #endif
 
     return out.str();
