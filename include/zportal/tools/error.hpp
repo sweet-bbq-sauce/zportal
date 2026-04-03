@@ -45,6 +45,7 @@ enum class ErrorCode : std::uint32_t {
     // io_uring errors
     RingSubmitFailed = 0x400,
     RingWaitFailed,
+    RingInvalid,
 
     // Resource errors
     NotEnoughMemory = 0x500,
