@@ -25,9 +25,8 @@ class Cqe {
 
     std::int32_t error() const noexcept;
 
-    friend class IoUring;
-
   private:
+    friend class IoUring;
     explicit Cqe(const io_uring_cqe& cqe) noexcept;
 
     std::uint64_t user_data_;

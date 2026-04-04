@@ -4,7 +4,7 @@ include(CheckCXXSourceCompiles)
 include("${PROJECT_SOURCE_DIR}/cmake/sanitizers.cmake")
 
 add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/net")
-#add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/iouring")
+add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/iouring")
 add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/tools")
 #add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/tunnel")
 

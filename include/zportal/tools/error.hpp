@@ -19,8 +19,7 @@ enum class ErrorCode : std::uint32_t {
     CrcMismatch,
 
     // Socket errors
-    InvalidSocket = 0x200,
-    PeerClosed,
+    PeerClosed = 0x200,
     SocketCreateFailed,
     InvalidSocketFamily,
     ConnectFailed,
@@ -45,7 +44,8 @@ enum class ErrorCode : std::uint32_t {
     // io_uring errors
     RingSubmitFailed = 0x400,
     RingWaitFailed,
-    RingInvalid,
+    RingCreateQueueFailed,
+    RingBufferRingSetupFailed,
 
     // Resource errors
     NotEnoughMemory = 0x500,
@@ -57,6 +57,12 @@ enum class ErrorCode : std::uint32_t {
     SendCqeWithoutFrameId,
     WriteUnknownFrameId,
     AddressParseFailed,
+    RingInvalid,
+    InvalidSocket,
+    InvalidBid,
+    InvalidBgid,
+    InvalidArgument,
+    InvalidBufferGroup,
 
     // SOCKS5 errors
     SocksHostnameTooLong = 0x700,
