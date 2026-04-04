@@ -3,7 +3,7 @@
 #include <cstdint>
 
 #include <zportal/iouring/cqe.hpp>
-#include <zportal/tunnel/operation.hpp>
+#include <zportal/session/operation.hpp>
 
 namespace zportal {
 
