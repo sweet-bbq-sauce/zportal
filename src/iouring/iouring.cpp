@@ -133,3 +133,7 @@ zportal::Result<zportal::BufferGroup*> zportal::IoUring::get_buffer_group(std::u
 
     return Fail(ErrorCode::InvalidBgid);
 }
+
+std::uint16_t zportal::IoUring::get_next_bgid_() noexcept {
+    return next_bgid_++;
+}
