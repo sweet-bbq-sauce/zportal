@@ -8,23 +8,23 @@
 #include <netinet/in.h>
 
 #include <zportal/net/address.hpp>
+#include <zportal/tools/error.hpp>
 
 namespace zportal {
 
-class TUNInterface {
+class TunDevice {
   public:
-    explicit TUNInterface(const std::string& name);
+    static Result<TunDevice> create_tun_device(const std::string& name, Cidr address, std::uint32_t mtu) noexcept;
+    TunDevice() noexcept = default;
 
-    TUNInterface(TUNInterface&&) noexcept;
-    TUNInterface& operator=(TUNInterface&&) noexcept;
+    TunDevice(TunDevice&&) noexcept;
+    TunDevice& operator=(TunDevice&&) noexcept;
 
-    TUNInterface(const TUNInterface&) = delete;
-    TUNInterface& operator=(const TUNInterface&) = delete;
+    TunDevice(const TunDevice&) = delete;
+    TunDevice& operator=(const TunDevice&) = delete;
 
-    ~TUNInterface() noexcept;
+    ~TunDevice() noexcept;
 
-    void set_cidr(Cidr cidr);
-    void set_mtu(std::uint32_t mtu);
     void set_up();
     void set_down();
 
@@ -39,6 +39,9 @@ class TUNInterface {
 
   private:
     void run_ip_command(const std::vector<std::string>& args);
+
+    void set_cidr_(Cidr cidr);
+    void set_mtu_(std::uint32_t mtu);
 
     int fd_{-1};
     int index_{};

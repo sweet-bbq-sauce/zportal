@@ -37,7 +37,7 @@ int main(int argn, char* argv[]) {
     if (end)
         return EXIT_SUCCESS;
 
-    zportal::TUNInterface tun(cfg.interface_name);
+    zportal::TunDevice tun(cfg.interface_name);
     tun.set_cidr(cfg.inner_address);
     tun.set_mtu(cfg.mtu);
     tun.set_up();

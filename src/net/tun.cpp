@@ -22,34 +22,47 @@
 
 #include <zportal/net/tun.hpp>
 #include <zportal/tools/debug.hpp>
+#include <zportal/tools/error.hpp>
 
-zportal::TUNInterface::TUNInterface(const std::string& name) : name_(name) {
-    fd_ = ::open("/dev/net/tun", O_RDWR);
-    if (fd_ < 0)
-        throw std::runtime_error(std::error_code{errno, std::system_category()}.message());
+zportal::Result<zportal::TunDevice> zportal::TunDevice::create_tun_device(const std::string& name, Cidr address,
+                                                                          std::uint32_t mtu) noexcept {
+    TunDevice tun;
+    tun.fd_ = ::open("/dev/net/tun", O_RDWR);
+    if (tun.fd_ < 0)
+        return Fail({ErrorCode::TunOpenFailed, errno});
 
     ifreq ifr{};
     ifr.ifr_flags = IFF_TUN | IFF_NO_PI;
-    std::strncpy(ifr.ifr_name, name_.c_str(), IFNAMSIZ - 1);
+    std::strncpy(ifr.ifr_name, tun.name_.c_str(), IFNAMSIZ - 1);
 
-    if (::ioctl(fd_, TUNSETIFF, &ifr) < 0) {
-        close();
-        throw std::runtime_error(std::error_code{errno, std::system_category()}.message());
+    if (::ioctl(tun.fd_, TUNSETIFF, &ifr) < 0) {
+        const int err = errno;
+        tun.close();
+        return Fail({ErrorCode::TunIoctlFailed, err});
     }
 
-    name_ = ifr.ifr_name;
-    index_ = ::if_nametoindex(name_.c_str());
-    if (index_ == 0) {
-        close();
-        throw std::runtime_error(std::error_code{errno, std::system_category()}.message());
+    tun.name_ = ifr.ifr_name;
+    tun.index_ = ::if_nametoindex(tun.name_.c_str());
+    if (tun.index_ == 0) {
+        const int err = errno;
+        tun.close();
+        return Fail({ErrorCode::TunNameToIndexFailed, err});
     }
+    try {
+        tun.set_cidr_(address);
+        tun.set_mtu_(mtu);
+    } catch (...) {
+        return Fail(ErrorCode::TunIpConfigFailed);
+    }
+
+    return tun;
 }
 
-zportal::TUNInterface::TUNInterface(TUNInterface&& other) noexcept
+zportal::TunDevice::TunDevice(TunDevice&& other) noexcept
     : fd_(std::exchange(other.fd_, -1)), index_(std::exchange(other.index_, 0)), name_(std::exchange(other.name_, "")) {
 }
 
-zportal::TUNInterface& zportal::TUNInterface::operator=(TUNInterface&& other) noexcept {
+zportal::TunDevice& zportal::TunDevice::operator=(TunDevice&& other) noexcept {
     if (this == &other)
         return *this;
 
@@ -61,48 +74,48 @@ zportal::TUNInterface& zportal::TUNInterface::operator=(TUNInterface&& other) no
     return *this;
 }
 
-zportal::TUNInterface::~TUNInterface() noexcept {
+zportal::TunDevice::~TunDevice() noexcept {
     close();
 }
 
-void zportal::TUNInterface::set_cidr(Cidr cidr) {
+void zportal::TunDevice::set_cidr_(Cidr cidr) {
     run_ip_command({"addr", "add", cidr.str(), "dev", name_});
 }
 
-void zportal::TUNInterface::set_mtu(std::uint32_t mtu) {
+void zportal::TunDevice::set_mtu_(std::uint32_t mtu) {
     mtu_ = mtu;
     run_ip_command({"link", "set", "dev", name_, "mtu", std::to_string(mtu)});
 }
 
-void zportal::TUNInterface::set_up() {
+void zportal::TunDevice::set_up() {
     run_ip_command({"link", "set", "dev", name_, "up"});
 }
 
-void zportal::TUNInterface::set_down() {
+void zportal::TunDevice::set_down() {
     run_ip_command({"link", "set", "dev", name_, "down"});
 }
 
-int zportal::TUNInterface::get_fd() const noexcept {
+int zportal::TunDevice::get_fd() const noexcept {
     return fd_;
 }
 
-const std::string& zportal::TUNInterface::get_name() const noexcept {
+const std::string& zportal::TunDevice::get_name() const noexcept {
     return name_;
 }
 
-int zportal::TUNInterface::get_index() const noexcept {
+int zportal::TunDevice::get_index() const noexcept {
     return index_;
 }
 
-std::uint32_t zportal::TUNInterface::get_mtu() const noexcept {
+std::uint32_t zportal::TunDevice::get_mtu() const noexcept {
     return mtu_;
 }
 
-zportal::TUNInterface::operator bool() const noexcept {
+zportal::TunDevice::operator bool() const noexcept {
     return get_fd() >= 0;
 }
 
-void zportal::TUNInterface::close() noexcept {
+void zportal::TunDevice::close() noexcept {
     if (fd_ < 0)
         return;
 
@@ -113,7 +126,7 @@ void zportal::TUNInterface::close() noexcept {
 }
 
 extern char** environ;
-void zportal::TUNInterface::run_ip_command(const std::vector<std::string>& args) {
+void zportal::TunDevice::run_ip_command(const std::vector<std::string>& args) {
     std::vector<char*> argv;
     argv.push_back(const_cast<char*>("ip"));
     for (const auto& arg : args)

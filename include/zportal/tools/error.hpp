@@ -40,6 +40,7 @@ enum class ErrorCode : std::uint32_t {
     TunPartialWrite,
     TunIoctlFailed,
     TunNameToIndexFailed,
+    TunIpConfigFailed,
 
     // io_uring errors
     RingSubmitFailed = 0x400,
