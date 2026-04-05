@@ -11,24 +11,9 @@
 #endif
 
 #include <zportal/tools/crc.hpp>
+#include <zportal/tools/support_check.hpp>
 
-bool zportal::is_sse4_supported() noexcept {
-#if defined(__x86_64__) || defined(__i386__)
-    static const bool supported = ([]() -> bool {
-        unsigned eax, ebx, ecx, edx;
-        if (!__get_cpuid(1, &eax, &ebx, &ecx, &edx))
-            return false;
-
-        return (ecx & bit_SSE4_2) != 0;
-    })();
-
-    return supported;
-#else
-    return false;
-#endif
-}
-
-constexpr auto crc32c_software = [](std::uint32_t& crc, std::span<const std::byte> data) -> void {
+static constexpr auto crc32c_software = [](std::uint32_t& crc, std::span<const std::byte> data) -> void {
     constexpr std::uint32_t poly = 0x82F63B78u; // reflected Castagnoli
     // std::uint32_t crc = 0xFFFFFFFFu;
 
@@ -86,7 +71,7 @@ std::uint32_t zportal::crc32c(std::span<const std::byte> data) noexcept {
     std::uint32_t crc = 0xFFFFFFFFu;
 
 #if defined(__x86_64__) || defined(__i386__)
-    is_sse4_supported() ? crc32c_hardware(crc, data) : crc32c_software(crc, data);
+    support_check::sse4() ? crc32c_hardware(crc, data) : crc32c_software(crc, data);
 #else
     crc32c_software(crc, data);
 #endif
@@ -99,7 +84,7 @@ std::uint32_t zportal::crc32c(const std::vector<std::span<const std::byte>>& dat
 
     for (const auto& segment : data) {
 #if defined(__x86_64__) || defined(__i386__)
-        is_sse4_supported() ? crc32c_hardware(crc, segment) : crc32c_software(crc, segment);
+        support_check::sse4() ? crc32c_hardware(crc, segment) : crc32c_software(crc, segment);
 #else
         crc32c_software(crc, segment);
 #endif
