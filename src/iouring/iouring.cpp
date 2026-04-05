@@ -1,5 +1,6 @@
 #include <memory>
 #include <new>
+#include <utility>
 #include <vector>
 
 #include <cstddef>
@@ -11,14 +12,27 @@
 #include <zportal/iouring/iouring.hpp>
 #include <zportal/tools/error.hpp>
 
-zportal::Result<void> zportal::IoUring::create_queue(IoUring& ring, unsigned entries) noexcept {
-    if (ring)
-        ring.close();
-
+zportal::Result<zportal::IoUring> zportal::IoUring::create_queue(unsigned entries) noexcept {
+    IoUring ring;
     if (const int result = ::io_uring_queue_init(entries, &ring.ring_, 0); result < 0)
         return Fail({ErrorCode::RingCreateQueueFailed, -result});
 
-    return {};
+    return ring;
+}
+
+zportal::IoUring::IoUring(IoUring&& other) noexcept
+    : ring_(std::exchange(other.ring_, invalid_ring_)), buffer_groups_(std::move(other.buffer_groups_)),
+      next_bgid_(std::exchange(other.next_bgid_, 0)) {}
+zportal::IoUring& zportal::IoUring::operator=(IoUring&& other) noexcept {
+    if (&other == this)
+        return *this;
+
+    close();
+    ring_ = std::exchange(other.ring_, invalid_ring_);
+    buffer_groups_ = std::move(other.buffer_groups_);
+    next_bgid_ = std::exchange(other.next_bgid_, 0);
+
+    return *this;
 }
 
 zportal::IoUring::~IoUring() noexcept {

@@ -15,7 +15,12 @@ class BufferGroup;
 class IoUring {
   public:
     IoUring() noexcept = default;
-    static Result<void> create_queue(IoUring& ring, unsigned entries) noexcept;
+    static Result<IoUring> create_queue(unsigned entries) noexcept;
+
+    IoUring(IoUring&&) noexcept;
+    IoUring& operator=(IoUring&&) noexcept;
+    IoUring(const IoUring&) = delete;
+    IoUring& operator=(const IoUring&) = delete; 
 
     ~IoUring() noexcept;
     void close() noexcept;
