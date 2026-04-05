@@ -47,6 +47,7 @@ enum class ErrorCode : std::uint32_t {
     RingWaitFailed,
     RingCreateQueueFailed,
     RingBufferRingSetupFailed,
+    RingProbeNotSupported,
 
     // Resource errors
     NotEnoughMemory = 0x500,
