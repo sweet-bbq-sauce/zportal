@@ -9,6 +9,7 @@
 
 #include <zportal/net/address.hpp>
 #include <zportal/tools/error.hpp>
+#include <zportal/tools/file_descriptor.hpp>
 
 namespace zportal {
 
@@ -43,7 +44,7 @@ class TunDevice {
     void set_cidr_(Cidr cidr);
     void set_mtu_(std::uint32_t mtu);
 
-    int fd_{-1};
+    FileDescriptor fd_;
     int index_{};
     std::string name_;
     std::uint32_t mtu_;

@@ -1,3 +1,4 @@
+#include "zportal/tools/file_descriptor.hpp"
 #include <stdexcept>
 #include <string>
 #include <system_error>
@@ -27,15 +28,15 @@
 zportal::Result<zportal::TunDevice> zportal::TunDevice::create_tun_device(const std::string& name, Cidr address,
                                                                           std::uint32_t mtu) noexcept {
     TunDevice tun;
-    tun.fd_ = ::open("/dev/net/tun", O_RDWR);
-    if (tun.fd_ < 0)
+    tun.fd_ = FileDescriptor(::open("/dev/net/tun", O_RDWR));
+    if (!tun.fd_)
         return Fail({ErrorCode::TunOpenFailed, errno});
 
     ifreq ifr{};
     ifr.ifr_flags = IFF_TUN | IFF_NO_PI;
     std::strncpy(ifr.ifr_name, name.c_str(), IFNAMSIZ - 1);
 
-    if (::ioctl(tun.fd_, TUNSETIFF, &ifr) < 0) {
+    if (::ioctl(tun.get_fd(), TUNSETIFF, &ifr) < 0) {
         const int err = errno;
         tun.close();
         return Fail({ErrorCode::TunIoctlFailed, err});
@@ -59,7 +60,7 @@ zportal::Result<zportal::TunDevice> zportal::TunDevice::create_tun_device(const 
 }
 
 zportal::TunDevice::TunDevice(TunDevice&& other) noexcept
-    : fd_(std::exchange(other.fd_, -1)), index_(std::exchange(other.index_, 0)), name_(std::exchange(other.name_, "")) {
+    : fd_(std::move(other.fd_)), index_(std::exchange(other.index_, 0)), name_(std::exchange(other.name_, "")) {
 }
 
 zportal::TunDevice& zportal::TunDevice::operator=(TunDevice&& other) noexcept {
@@ -67,7 +68,7 @@ zportal::TunDevice& zportal::TunDevice::operator=(TunDevice&& other) noexcept {
         return *this;
 
     close();
-    fd_ = std::exchange(other.fd_, -1);
+    fd_ = std::move(other.fd_);
     index_ = std::exchange(other.index_, 0);
     name_ = std::exchange(other.name_, "");
 
@@ -96,7 +97,7 @@ void zportal::TunDevice::set_down() {
 }
 
 int zportal::TunDevice::get_fd() const noexcept {
-    return fd_;
+    return fd_.get();
 }
 
 const std::string& zportal::TunDevice::get_name() const noexcept {
@@ -112,17 +113,11 @@ std::uint32_t zportal::TunDevice::get_mtu() const noexcept {
 }
 
 zportal::TunDevice::operator bool() const noexcept {
-    return get_fd() >= 0;
+    return fd_.is_valid();
 }
 
 void zportal::TunDevice::close() noexcept {
-    if (fd_ < 0)
-        return;
-
-    if (::close(fd_) != 0)
-        DEBUG_ERRNO(errno, "close");
-
-    fd_ = -1;
+    fd_.close();
 }
 
 extern char** environ;
