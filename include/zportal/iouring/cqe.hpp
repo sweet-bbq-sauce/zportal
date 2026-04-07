@@ -6,16 +6,18 @@
 
 #include <liburing.h>
 
+#include <zportal/session/operation.hpp>
+
 namespace zportal {
 
 class IoUring;
 
 class Cqe {
   public:
-    std::uint64_t user_data64() const noexcept;
-    void* user_data() const noexcept;
+    
     std::int32_t result() const noexcept;
     std::uint32_t flags() const noexcept;
+    Operation operation() const noexcept;
 
     std::optional<std::uint16_t> bid() const noexcept;
     bool more() const noexcept;
@@ -29,7 +31,7 @@ class Cqe {
     friend class IoUring;
     explicit Cqe(const io_uring_cqe& cqe) noexcept;
 
-    std::uint64_t user_data_;
+    Operation operation_;
     std::int32_t result_;
     std::uint32_t flags_;
 };

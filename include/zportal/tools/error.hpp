@@ -56,6 +56,7 @@ enum class ErrorCode : std::uint32_t {
     // Internal errors
     RecvParserError = 0x600,
     RecvCqeMissingBid,
+    ReadCqeMissingBid,
     SendCqeWithoutFrameId,
     WriteUnknownFrameId,
     AddressParseFailed,
@@ -65,6 +66,9 @@ enum class ErrorCode : std::uint32_t {
     InvalidBgid,
     InvalidArgument,
     InvalidBufferGroup,
+    WrongOperationType,
+    InvalidTransmitter,
+    InvalidState,
 
     // SOCKS5 errors
     SocksHostnameTooLong = 0x700,

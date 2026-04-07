@@ -10,17 +10,16 @@
 
 #include <endian.h>
 
-#include <zportal/session/frame/header.hpp>
+#include <zportal/session/frame_header.hpp>
 
 namespace zportal {
 
-inline void FrameHeader::clean() noexcept {
-    std::memset(data_.data(), 0x00, data_.size());
-    set_u32_(0, magic);
+inline FrameHeader::FrameHeader() noexcept {
+    set_u32_(0, magic_number);
 }
 
-inline std::uint32_t FrameHeader::get_magic() const noexcept {
-    return get_u32_(0);
+inline bool FrameHeader::is_magic_valid() const noexcept {
+    return get_u32_(0) == magic_number;
 }
 
 inline std::uint32_t FrameHeader::get_flags() const noexcept {

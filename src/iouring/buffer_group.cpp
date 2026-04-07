@@ -1,3 +1,5 @@
+#include <optional>
+
 #include <cstddef>
 
 #include <liburing.h>
@@ -18,16 +20,20 @@ zportal::BufferGroup::~BufferGroup() noexcept {
     br_ = nullptr;
 }
 
-zportal::Result<std::span<std::byte>> zportal::BufferGroup::get_buffer(std::uint16_t bid) noexcept {
+zportal::Result<std::span<std::byte>> zportal::BufferGroup::get_buffer(std::uint16_t bid,
+                                                                       std::optional<std::uint32_t> size) noexcept {
     if (!is_valid())
         return Fail(ErrorCode::InvalidBufferGroup);
 
     if (bid >= buffer_count_)
         return Fail(ErrorCode::InvalidBid);
 
+    if (size && *size > buffer_size_)
+        return Fail(ErrorCode::InvalidSize);
+
     std::byte* ptr = data_.get();
     const std::size_t offset = static_cast<std::size_t>(bid) * static_cast<std::size_t>(buffer_size_);
-    return std::span<std::byte>{ptr + offset, static_cast<std::size_t>(buffer_size_)};
+    return std::span<std::byte>{ptr + offset, static_cast<std::size_t>(size ? *size : buffer_size_)};
 }
 
 zportal::Result<void> zportal::BufferGroup::return_buffer(std::uint16_t bid) noexcept {

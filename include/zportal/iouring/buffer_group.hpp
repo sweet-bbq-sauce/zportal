@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <optional>
 #include <span>
 
 #include <cstddef>
@@ -18,7 +19,7 @@ class BufferGroup {
   public:
     ~BufferGroup() noexcept;
 
-    Result<std::span<std::byte>> get_buffer(std::uint16_t bid) noexcept;
+    Result<std::span<std::byte>> get_buffer(std::uint16_t bid, std::optional<std::uint32_t> size = {}) noexcept;
     Result<void> return_buffer(std::uint16_t bid) noexcept;
 
     std::size_t get_buffer_count() const noexcept;

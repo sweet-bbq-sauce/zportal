@@ -2,8 +2,6 @@
 
 #include <cstdint>
 
-#include <zportal/iouring/cqe.hpp>
-
 namespace zportal {
 
 /*
@@ -15,22 +13,21 @@ namespace zportal {
 
 */
 
+enum class OperationType : std::uint8_t { NONE, RECV, SEND, READ, WRITE, SIGNAL };
+
 class Operation {
   public:
     Operation() noexcept = default;
     explicit Operation(std::uint64_t serialized) noexcept;
-    explicit Operation(const Cqe& cqe) noexcept;
 
-    enum class Type : std::uint8_t { NONE, RECV, SEND, READ, WRITE, SIGNAL };
-
-    Type get_type() const noexcept;
-    void set_type(Type type) noexcept;
+    OperationType get_type() const noexcept;
+    void set_type(OperationType type) noexcept;
 
     void parse(std::uint64_t serialized) noexcept;
     std::uint64_t serialize() const noexcept;
 
   private:
-    Type type_{Type::NONE};
+    OperationType type_{OperationType::NONE};
 };
 
 } // namespace zportal

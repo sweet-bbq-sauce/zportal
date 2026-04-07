@@ -33,7 +33,7 @@ zportal::Result<zportal::TunDevice> zportal::TunDevice::create_tun_device(const 
 
     ifreq ifr{};
     ifr.ifr_flags = IFF_TUN | IFF_NO_PI;
-    std::strncpy(ifr.ifr_name, tun.name_.c_str(), IFNAMSIZ - 1);
+    std::strncpy(ifr.ifr_name, name.c_str(), IFNAMSIZ - 1);
 
     if (::ioctl(tun.fd_, TUNSETIFF, &ifr) < 0) {
         const int err = errno;

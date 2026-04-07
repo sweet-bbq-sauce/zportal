@@ -2,7 +2,6 @@
 
 #include <cstdint>
 
-#include <zportal/iouring/cqe.hpp>
 #include <zportal/session/operation.hpp>
 
 namespace zportal {
@@ -11,20 +10,16 @@ inline Operation::Operation(std::uint64_t serialized) noexcept {
     parse(serialized);
 }
 
-inline Operation::Operation(const Cqe& cqe) noexcept {
-    parse(cqe.user_data64());
-}
-
-inline Operation::Type Operation::get_type() const noexcept {
+inline OperationType Operation::get_type() const noexcept {
     return type_;
 }
 
-inline void Operation::set_type(Type type) noexcept {
+inline void Operation::set_type(OperationType type) noexcept {
     type_ = type;
 }
 
 inline void Operation::parse(std::uint64_t serialized) noexcept {
-    type_ = static_cast<Type>(serialized & 0xFFu);
+    type_ = static_cast<OperationType>(serialized & 0xFFu);
 }
 
 inline std::uint64_t Operation::serialize() const noexcept {
