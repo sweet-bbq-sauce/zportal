@@ -144,9 +144,9 @@ zportal::Result<void> zportal::Transmitter::kick_send_() noexcept {
         state.segments.push_back({.iov_base = payload->data() + (state.bytes_sent - FrameHeader::wire_size),
                                   .iov_len = payload->size() - (state.bytes_sent - FrameHeader::wire_size)});
 
-    state.msghdr = msghdr{};
-    state.msghdr.msg_iov = state.segments.data();
-    state.msghdr.msg_iovlen = state.segments.size();
+    state.message_header = msghdr{};
+    state.message_header.msg_iov = state.segments.data();
+    state.message_header.msg_iovlen = state.segments.size();
 
     auto sqe = ring_->get_sqe();
     if (!sqe)
@@ -155,7 +155,7 @@ zportal::Result<void> zportal::Transmitter::kick_send_() noexcept {
     Operation operation;
     operation.set_type(OperationType::SEND);
 
-    ::io_uring_prep_sendmsg(*sqe, sock_->get(), &state.msghdr, 0);
+    ::io_uring_prep_sendmsg(*sqe, sock_->get(), &state.message_header, 0);
     ::io_uring_sqe_set_data64(*sqe, operation.serialize());
 
     const auto submit_result = ring_->submit();

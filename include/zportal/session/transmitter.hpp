@@ -50,7 +50,7 @@ class Transmitter {
 
         std::size_t bytes_sent{};
         std::vector<iovec> segments;
-        msghdr msghdr{};
+        msghdr message_header{};
     };
     bool send_in_progress_{false};
     std::optional<CurrentFrameState> current_frame_state_{};
