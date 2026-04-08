@@ -5,8 +5,6 @@
 
 #include <cstdint>
 
-#include <netinet/in.h>
-
 #include <zportal/net/address.hpp>
 #include <zportal/tools/error.hpp>
 #include <zportal/tools/file_descriptor.hpp>
