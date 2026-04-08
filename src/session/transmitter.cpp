@@ -63,6 +63,14 @@ zportal::Result<void> zportal::Transmitter::handle_cqe(const Cqe& cqe) noexcept 
         return handle_read_cqe_(cqe);
 }
 
+bool zportal::Transmitter::is_valid() const noexcept {
+    return ring_ && tun_ && sock_;
+}
+
+zportal::Transmitter::operator bool() const noexcept {
+    return is_valid();
+}
+
 zportal::Result<void> zportal::Transmitter::handle_read_cqe_(const Cqe& cqe) noexcept {
     if (!is_valid())
         return Fail(ErrorCode::InvalidTransmitter);
@@ -155,7 +163,7 @@ zportal::Result<void> zportal::Transmitter::kick_send_() noexcept {
     Operation operation;
     operation.set_type(OperationType::SEND);
 
-    ::io_uring_prep_sendmsg(*sqe, sock_->get(), &state.message_header, 0);
+    ::io_uring_prep_sendmsg(*sqe, sock_->get(), &state.message_header, MSG_NOSIGNAL);
     ::io_uring_sqe_set_data64(*sqe, operation.serialize());
 
     const auto submit_result = ring_->submit();
