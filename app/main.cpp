@@ -1,75 +1,67 @@
-#include <exception>
 #include <iostream>
-#include <stdexcept>
 
 #include <cstdlib>
 
+#include <zportal/iouring/iouring.hpp>
+#include <zportal/net/address.hpp>
 #include <zportal/net/connection.hpp>
-#include <zportal/net/socket.hpp>
 #include <zportal/net/tun.hpp>
-#include <zportal/tools/config.hpp>
-#include <zportal/tools/error.hpp>
-#include <zportal/tunnel/tunnel.hpp>
+#include <zportal/session/transmitter.hpp>
 
-[[noreturn]] void end_with_error(const zportal::Error& err) noexcept {
-    std::cerr << "Error: " << err.to_string() << std::endl;
-    std::exit(EXIT_FAILURE);
-}
-
+// Use with 'nc 127.0.0.1 3333 > packets.bin'
 int main(int argn, char* argv[]) {
-    zportal::Config cfg{};
-    bool end{};
-    std::exception_ptr result = zportal::parse_cli_arguments(cfg, argn, argv, end);
-    if (result) {
-        try {
-            std::rethrow_exception(result);
-        } catch (const std::invalid_argument& e) {
-            std::cerr << "Invalid CLI argument: " << e.what() << std::endl;
-        } catch (const std::exception& e) {
-            std::cerr << "Exception in CLI parsing: " << e.what() << std::endl;
-        } catch (...) {
-            std::cerr << "Unknown exception in CLI parsing" << std::endl;
-        }
-
+    const zportal::HostPair host{.hostname = "127.0.0.1", .port = 3333};
+    const auto listener = zportal::create_listener(host);
+    if (!listener) {
+        std::cerr << listener.error().to_string() << std::endl;
         return EXIT_FAILURE;
     }
 
-    if (end)
-        return EXIT_SUCCESS;
-
-    zportal::TunDevice tun(cfg.interface_name);
-    tun.set_cidr(cfg.inner_address);
-    tun.set_mtu(cfg.mtu);
-    tun.set_up();
-
-    zportal::Socket sock;
-    if (cfg.connect_address) {
-        auto connect_result = zportal::connect_to(*cfg.connect_address, cfg.proxies);
-        if (!connect_result)
-            end_with_error(connect_result.error());
-
-        sock = std::move(*connect_result);
-        std::cout << "Connected" << std::endl;
-    } else {
-        const auto listener_result = zportal::create_listener(*cfg.bind_address);
-        if (!listener_result)
-            end_with_error(listener_result.error());
-
-        auto accept_result = zportal::accept_from(*listener_result);
-        if (!accept_result)
-            end_with_error(accept_result.error());
-
-        sock = std::move(*accept_result);
-        std::cout << "Accepted" << std::endl;
+    auto ring = zportal::IoUring::create_queue(8);
+    if (!ring) {
+        std::cerr << ring.error().to_string() << std::endl;
+        return EXIT_FAILURE;
     }
 
-    zportal::IOUring ring(1024);
-    zportal::Tunnel tunnel(std::move(ring), std::move(tun), std::move(sock), cfg);
+    zportal::Cidr cidr(zportal::SockAddress::ip4_numeric("10.0.1.1", 0), 24);
+    auto tun = zportal::TunDevice::create_tun_device("zp0", cidr, 1000);
+    if (!tun) {
+        std::cerr << tun.error().to_string() << std::endl;
+        return EXIT_FAILURE;
+    }
 
-    const auto run_result = tunnel.run();
-    if (!run_result)
-        end_with_error(run_result.error());
+    tun->set_up();
 
-    std::cout << "Exiting ..." << std::endl;
-    return result ? EXIT_FAILURE : EXIT_SUCCESS;
+    auto client = zportal::accept_from(*listener);
+    if (!client) {
+        std::cerr << client.error().to_string() << std::endl;
+        return EXIT_FAILURE;
+    }
+
+    std::cout << "Client connected" << std::endl;
+
+    auto transmitter = zportal::Transmitter::create_transmitter(*ring, *tun, *client, 16);
+    if (!transmitter) {
+        std::cerr << transmitter.error().to_string() << std::endl;
+        return EXIT_FAILURE;
+    }
+
+    if (const auto result = transmitter->arm_read(); !result) {
+        std::cerr << result.error().to_string() << std::endl;
+        return EXIT_FAILURE;
+    }
+
+    while (true) {
+        auto cqe = ring->wait();
+        if (!cqe) {
+            std::cerr << cqe.error().to_string() << std::endl;
+            return EXIT_FAILURE;
+        }
+        if (const auto result = transmitter->handle_cqe(*cqe); !result) {
+            std::cerr << result.error().to_string() << std::endl;
+            return EXIT_FAILURE;
+        }
+    }
+
+    return EXIT_SUCCESS;
 }

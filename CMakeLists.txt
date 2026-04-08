@@ -20,7 +20,7 @@ option(BUILD_TESTS "Build gtests" ON)
 option(WITH_ASAN_UBSAN "Build with ASan & UBSan" OFF)
 
 add_subdirectory("${PROJECT_SOURCE_DIR}/src")
-#add_subdirectory("${PROJECT_SOURCE_DIR}/app")
+add_subdirectory("${PROJECT_SOURCE_DIR}/app")
 
 if(BUILD_TESTS)
     enable_testing()

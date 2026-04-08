@@ -44,6 +44,7 @@ zportal::Result<zportal::TunDevice> zportal::TunDevice::create_tun_device(const 
         tun.close();
         return Fail({ErrorCode::TunNameToIndexFailed, err});
     }
+
     try {
         tun.set_cidr_(address);
         tun.set_mtu_(mtu);
@@ -55,8 +56,8 @@ zportal::Result<zportal::TunDevice> zportal::TunDevice::create_tun_device(const 
 }
 
 zportal::TunDevice::TunDevice(TunDevice&& other) noexcept
-    : fd_(std::move(other.fd_)), index_(std::exchange(other.index_, 0)), name_(std::exchange(other.name_, "")) {
-}
+    : fd_(std::move(other.fd_)), mtu_(std::exchange(other.mtu_, 0)), index_(std::exchange(other.index_, 0)),
+      name_(std::exchange(other.name_, "")) {}
 
 zportal::TunDevice& zportal::TunDevice::operator=(TunDevice&& other) noexcept {
     if (this == &other)
@@ -64,6 +65,7 @@ zportal::TunDevice& zportal::TunDevice::operator=(TunDevice&& other) noexcept {
 
     close();
     fd_ = std::move(other.fd_);
+    mtu_ = std::exchange(other.mtu_, 0);
     index_ = std::exchange(other.index_, 0);
     name_ = std::exchange(other.name_, "");
 
