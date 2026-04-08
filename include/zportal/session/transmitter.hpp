@@ -43,6 +43,7 @@ class Transmitter {
         std::uint32_t size;
     };
     std::queue<OutFrame> frame_queue_;
+    bool cooling_down_{false};
 
     struct CurrentFrameState {
         OutFrame frame;

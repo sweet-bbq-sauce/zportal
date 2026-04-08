@@ -1,5 +1,7 @@
 #include <new>
 
+#include <cerrno>
+
 #include <liburing.h>
 #include <sys/socket.h>
 
@@ -64,7 +66,7 @@ zportal::Result<void> zportal::Transmitter::handle_cqe(const Cqe& cqe) noexcept 
 }
 
 bool zportal::Transmitter::is_valid() const noexcept {
-    return ring_ && tun_ && sock_;
+    return ring_ && tun_ && sock_ && bg_;
 }
 
 zportal::Transmitter::operator bool() const noexcept {
@@ -78,8 +80,14 @@ zportal::Result<void> zportal::Transmitter::handle_read_cqe_(const Cqe& cqe) noe
     if (cqe.operation().get_type() != OperationType::READ)
         return Fail(ErrorCode::WrongOperationType);
 
-    if (!cqe.ok())
+    if (!cqe.ok()) {
+        if (cqe.error() == ENOBUFS && !cqe.more()) {
+            cooling_down_ = true;
+            return kick_send_();
+        }
+
         return Fail({ErrorCode::TunReadFailed, cqe.error()});
+    }
 
     const auto bid = cqe.bid();
     const std::uint32_t readen = static_cast<std::size_t>(cqe.result());
@@ -209,6 +217,15 @@ zportal::Result<void> zportal::Transmitter::handle_send_cqe_(const Cqe& cqe) noe
 
         if (const auto result = bg_->return_buffer(bid); !result)
             return Fail(result.error());
+    }
+
+    if (cooling_down_) {
+        if (frame_queue_.size() <= bg_->get_buffer_count() / 2) {
+            if (const auto result = arm_read(); !result)
+                return Fail(result.error());
+
+            cooling_down_ = false;
+        }
     }
 
     return kick_send_();
