@@ -44,7 +44,7 @@ zportal::Result<void> zportal::Transmitter::arm_read() noexcept {
     ::io_uring_prep_read_multishot(*sqe, tun_->get_fd(), 0, 0, bg_->get_bgid());
     ::io_uring_sqe_set_data64(*sqe, op.serialize());
 
-    auto submit_result = ring_->submit();
+    const auto submit_result = ring_->submit();
     if (!submit_result)
         return Fail(submit_result.error());
 
@@ -90,9 +90,10 @@ zportal::Result<void> zportal::Transmitter::handle_read_cqe_(const Cqe& cqe) noe
     }
 
     const auto bid = cqe.bid();
-    const std::uint32_t readen = static_cast<std::size_t>(cqe.result());
     if (!bid)
         return Fail(ErrorCode::ReadCqeMissingBid);
+    
+    const std::uint32_t readen = static_cast<std::size_t>(cqe.result());
 
     OutFrame out_frame{.bid = *bid, .size = readen};
 

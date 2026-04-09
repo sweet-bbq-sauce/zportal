@@ -68,6 +68,7 @@ enum class ErrorCode : std::uint32_t {
     InvalidBufferGroup,
     WrongOperationType,
     InvalidTransmitter,
+    InvalidReceiver,
     InvalidState,
 
     // SOCKS5 errors
