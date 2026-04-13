@@ -92,7 +92,7 @@ zportal::Result<void> zportal::Transmitter::handle_read_cqe_(const Cqe& cqe) noe
     const auto bid = cqe.bid();
     if (!bid)
         return Fail(ErrorCode::ReadCqeMissingBid);
-    
+
     const std::uint32_t readen = static_cast<std::size_t>(cqe.result());
 
     OutFrame out_frame{.bid = *bid, .size = readen};
@@ -100,7 +100,9 @@ zportal::Result<void> zportal::Transmitter::handle_read_cqe_(const Cqe& cqe) noe
     try {
         frame_queue_.push(out_frame);
     } catch (const std::bad_alloc&) {
-        const auto result /*unused*/ = bg_->return_buffer(*bid);
+        const auto result = bg_->return_buffer(*bid);
+        (void)result;
+
         return Fail(ErrorCode::NotEnoughMemory);
     }
 
@@ -175,8 +177,7 @@ zportal::Result<void> zportal::Transmitter::kick_send_() noexcept {
     ::io_uring_prep_sendmsg(*sqe, sock_->get(), &state.message_header, MSG_NOSIGNAL);
     ::io_uring_sqe_set_data64(*sqe, operation.serialize());
 
-    const auto submit_result = ring_->submit();
-    if (!submit_result)
+    if (const auto submit_result = ring_->submit(); !submit_result)
         return Fail(submit_result.error());
 
     send_in_progress_ = true;

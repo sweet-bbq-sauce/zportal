@@ -16,7 +16,7 @@ enum class ErrorCode : std::uint32_t {
     // Protocol errors
     InvalidMagic = 0x100,
     InvalidSize,
-    CrcMismatch,
+    FrameCrcMismatch,
 
     // Socket errors
     PeerClosed = 0x200,
@@ -57,8 +57,8 @@ enum class ErrorCode : std::uint32_t {
     RecvParserError = 0x600,
     RecvCqeMissingBid,
     ReadCqeMissingBid,
-    SendCqeWithoutFrameId,
-    WriteUnknownFrameId,
+    SendCqeWithoutFrame,
+    WriteUnknownFrame,
     AddressParseFailed,
     RingInvalid,
     InvalidSocket,
@@ -70,6 +70,7 @@ enum class ErrorCode : std::uint32_t {
     InvalidTransmitter,
     InvalidReceiver,
     InvalidState,
+    InvalidEnumValue,
 
     // SOCKS5 errors
     SocksHostnameTooLong = 0x700,

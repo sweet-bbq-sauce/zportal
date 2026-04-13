@@ -1,9 +1,14 @@
+#include <new>
+
+#include <cassert>
 #include <cerrno>
 
 #include <liburing.h>
 
+#include <zportal/session/frame_header.hpp>
 #include <zportal/session/operation.hpp>
 #include <zportal/session/receiver.hpp>
+#include <zportal/tools/crc.hpp>
 #include <zportal/tools/error.hpp>
 
 zportal::Result<zportal::Receiver> zportal::Receiver::create_receiver(IoUring& ring, TunDevice& tun, Socket& socket,
@@ -17,6 +22,13 @@ zportal::Result<zportal::Receiver> zportal::Receiver::create_receiver(IoUring& r
     if (!bg)
         return Fail(bg.error());
     receiver.bg_ = *bg;
+
+    try {
+        receiver.buffer_refcounts_.resize(queue_length, 0);
+    } catch (const std::bad_alloc&) {
+        // TODO: delete buffer group
+        return Fail(ErrorCode::NotEnoughMemory);
+    }
 
     return receiver;
 }
@@ -73,7 +85,49 @@ zportal::Result<void> zportal::Receiver::handle_write_cqe_(const Cqe& cqe) noexc
     if (cqe.operation().get_type() != OperationType::WRITE)
         return Fail(ErrorCode::WrongOperationType);
 
-    return {};
+    write_in_progress_ = false;
+
+    if (output_frame_queue_.empty())
+        return Fail(ErrorCode::WriteUnknownFrame);
+
+    if (!cqe.ok())
+        return Fail({ErrorCode::TunWriteFailed, cqe.error()});
+
+    const auto& frame = output_frame_queue_.front();
+    const std::size_t frame_size = ([&]() {
+        std::size_t size{};
+        for (const auto& segment : frame.segments)
+            size += static_cast<std::size_t>(segment.iov_len);
+
+        return size;
+    })();
+
+    const std::size_t written = static_cast<std::size_t>(cqe.result());
+    if (written != frame_size)
+        return Fail(ErrorCode::TunPartialWrite);
+
+    for (std::uint16_t bid : frame.bid) {
+        buffer_refcounts_[bid]--;
+        if (buffer_refcounts_[bid] <= 0) {
+            assert(buffer_refcounts_[bid] == 0);
+
+            if (const auto result = bg_->return_buffer(bid); !result)
+                return Fail(result.error());
+
+            used_buffers_--;
+        }
+    }
+
+    output_frame_queue_.pop();
+
+    if (cooling_down_ && (used_buffers_ < bg_->get_buffer_count() / 2)) {
+        if (const auto arm_recv_result = arm_recv(); !arm_recv_result)
+            return Fail(arm_recv_result.error());
+
+        cooling_down_ = false;
+    }
+
+    return kick_write_();
 }
 
 zportal::Result<void> zportal::Receiver::handle_recv_cqe_(const Cqe& cqe) noexcept {
@@ -83,8 +137,15 @@ zportal::Result<void> zportal::Receiver::handle_recv_cqe_(const Cqe& cqe) noexce
     if (cqe.operation().get_type() != OperationType::RECV)
         return Fail(ErrorCode::WrongOperationType);
 
-    if (!cqe.ok())
+    if (!cqe.ok()) {
+        if (cqe.error() == ENOBUFS) {
+            cooling_down_ = true;
+            return kick_write_();
+        }
         return Fail({ErrorCode::RecvFailed, cqe.error()});
+    }
+
+    used_buffers_++;
 
     const std::uint32_t readen = cqe.result();
     if (readen == 0)
@@ -94,7 +155,127 @@ zportal::Result<void> zportal::Receiver::handle_recv_cqe_(const Cqe& cqe) noexce
     if (!bid)
         return Fail(ErrorCode::RecvCqeMissingBid);
 
-    segment_queue_.push({.bid = *bid, .size = readen});
+    input_buffer_queue_.push({.bid = *bid, .size = static_cast<std::size_t>(readen)});
+
+    if (const auto kick_parse_result = kick_parse_(); !kick_parse_result)
+        return Fail(kick_parse_result.error());
+
+    return kick_write_();
+}
+
+zportal::Result<void> zportal::Receiver::kick_parse_() noexcept {
+    if (!is_valid())
+        return Fail(ErrorCode::InvalidReceiver);
+
+    while (!input_buffer_queue_.empty()) {
+        InputBuffer& input_buffer = input_buffer_queue_.front();
+
+        if (input_buffer.offset >= input_buffer.size)
+            return Fail(ErrorCode::InvalidState);
+
+        if (state_ == ParseState::PARSING_HEADER) {
+            if (header_progress_ >= FrameHeader::wire_size)
+                return Fail(ErrorCode::InvalidState);
+
+            auto buffer_span = bg_->get_buffer(input_buffer.bid, static_cast<std::uint32_t>(input_buffer.size));
+            if (!buffer_span)
+                return Fail(buffer_span.error());
+
+            const std::size_t take =
+                std::min(input_buffer.size - input_buffer.offset, FrameHeader::wire_size - header_progress_);
+            std::memcpy(header_.data().data() + header_progress_, buffer_span->data() + input_buffer.offset, take);
+
+            input_buffer.offset += take;
+            header_progress_ += take;
+
+            if (header_progress_ == FrameHeader::wire_size) {
+                header_progress_ = 0;
+
+                if (!header_.is_magic_valid())
+                    return Fail(ErrorCode::InvalidMagic);
+
+                if (header_.get_size() == 0 || header_.get_size() > tun_->get_mtu())
+                    return Fail(ErrorCode::InvalidSize);
+
+                state_ = ParseState::PARSING_PAYLOAD;
+            }
+
+        } else if (state_ == ParseState::PARSING_PAYLOAD) {
+            const std::size_t payload_size = static_cast<std::size_t>(header_.get_size());
+            if (payload_progress_ >= payload_size)
+                return Fail(ErrorCode::InvalidState);
+
+            auto buffer_span = bg_->get_buffer(input_buffer.bid, static_cast<std::uint32_t>(input_buffer.size));
+            if (!buffer_span)
+                return Fail(buffer_span.error());
+
+            const std::size_t take =
+                std::min(input_buffer.size - input_buffer.offset, payload_size - payload_progress_);
+
+            buffer_refcounts_[input_buffer.bid]++;
+
+            try {
+                frame_.bid.push_back(input_buffer.bid);
+                frame_.segments.push_back({.iov_base = buffer_span->data() + input_buffer.offset, .iov_len = take});
+            } catch (const std::bad_alloc&) {
+                return Fail(ErrorCode::NotEnoughMemory);
+            }
+
+            input_buffer.offset += take;
+            payload_progress_ += take;
+
+            if (payload_progress_ == payload_size) {
+                payload_progress_ = 0;
+
+                if (header_.get_crc() != crc32c(frame_.segments))
+                    return Fail(ErrorCode::FrameCrcMismatch);
+
+                try {
+                    output_frame_queue_.push(frame_);
+                } catch (const std::bad_alloc&) {
+                    return Fail(ErrorCode::NotEnoughMemory);
+                }
+
+                frame_ = OutputFrame{};
+                state_ = ParseState::PARSING_HEADER;
+            }
+        } else
+            return Fail(ErrorCode::InvalidEnumValue);
+
+        if (input_buffer.offset == input_buffer.size)
+            input_buffer_queue_.pop();
+    }
+
+    return {};
+}
+
+zportal::Result<void> zportal::Receiver::kick_write_() noexcept {
+    if (!is_valid())
+        return Fail(ErrorCode::InvalidReceiver);
+
+    if (write_in_progress_)
+        return {};
+
+    if (output_frame_queue_.empty())
+        return {};
+
+    const auto& frame = output_frame_queue_.front();
+
+    auto sqe = ring_->get_sqe();
+    if (!sqe)
+        return Fail(sqe.error());
+
+    Operation operation;
+    operation.set_type(OperationType::WRITE);
+
+    ::io_uring_prep_writev(*sqe, tun_->get_fd(), frame.segments.data(),
+                           static_cast<unsigned int>(frame.segments.size()), 0);
+    ::io_uring_sqe_set_data64(*sqe, operation.serialize());
+
+    if (const auto submit_result = ring_->submit(); !submit_result)
+        return Fail(submit_result.error());
+
+    write_in_progress_ = true;
 
     return {};
 }
