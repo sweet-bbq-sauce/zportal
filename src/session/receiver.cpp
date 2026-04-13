@@ -45,7 +45,9 @@ zportal::Receiver::Receiver(Receiver&& other) noexcept
       bg_(std::exchange(other.bg_, nullptr)), socket_(std::exchange(other.socket_, nullptr)),
       cooling_down_(std::exchange(other.cooling_down_, false)), used_buffers_(std::exchange(other.used_buffers_, 0)),
       input_buffer_queue_(std::move(other.input_buffer_queue_)), buffer_refcounts_(std::move(other.buffer_refcounts_)),
-      frame_(std::move(other.frame_)), payload_progress_(std::exchange(other.payload_progress_, 0)),
+      state_(std::exchange(other.state_, {})), header_(std::exchange(other.header_, {})),
+      header_progress_(std::exchange(other.header_progress_, 0)), frame_(std::move(other.frame_)),
+      payload_progress_(std::exchange(other.payload_progress_, 0)),
       output_frame_queue_(std::move(other.output_frame_queue_)),
       write_in_progress_(std::exchange(other.write_in_progress_, false)) {}
 
@@ -61,6 +63,9 @@ zportal::Receiver& zportal::Receiver::operator=(Receiver&& other) noexcept {
     used_buffers_ = std::exchange(other.used_buffers_, 0);
     input_buffer_queue_ = std::move(other.input_buffer_queue_);
     buffer_refcounts_ = std::move(other.buffer_refcounts_);
+    state_ = std::exchange(other.state_, {});
+    header_ = std::exchange(other.header_, {});
+    header_progress_ = std::exchange(other.header_progress_, 0);
     frame_ = std::move(other.frame_);
     payload_progress_ = std::exchange(other.payload_progress_, 0);
     output_frame_queue_ = std::move(other.output_frame_queue_);
@@ -191,7 +196,11 @@ zportal::Result<void> zportal::Receiver::handle_recv_cqe_(const Cqe& cqe) noexce
     if (!bid)
         return Fail(ErrorCode::RecvCqeMissingBid);
 
-    input_buffer_queue_.push({.bid = *bid, .size = static_cast<std::size_t>(readen)});
+    try {
+        input_buffer_queue_.push({.bid = *bid, .size = static_cast<std::size_t>(readen)});
+    } catch (const std::bad_alloc&) {
+        return Fail(ErrorCode::NotEnoughMemory);
+    }
 
     if (const auto kick_parse_result = kick_parse_(); !kick_parse_result)
         return Fail(kick_parse_result.error());
@@ -278,8 +287,16 @@ zportal::Result<void> zportal::Receiver::kick_parse_() noexcept {
         } else
             return Fail(ErrorCode::InvalidEnumValue);
 
-        if (input_buffer.offset == input_buffer.size)
+        if (input_buffer.offset == input_buffer.size) {
+            if (buffer_refcounts_[input_buffer.bid] == 0) {
+                if (const auto result = bg_->return_buffer(input_buffer.bid); !result)
+                    return Fail(result.error());
+
+                used_buffers_--;
+            }
+
             input_buffer_queue_.pop();
+        }
     }
 
     return {};

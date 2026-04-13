@@ -20,6 +20,8 @@
 
 namespace zportal {
 
+class Session;
+
 class Transmitter {
   public:
     Transmitter() noexcept = default;
@@ -36,6 +38,8 @@ class Transmitter {
 
     bool is_valid() const noexcept;
     explicit operator bool() const noexcept;
+
+    friend class Session;
 
   private:
     IoUring* ring_{};

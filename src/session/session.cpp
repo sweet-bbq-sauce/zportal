@@ -1,6 +1,6 @@
-#include "zportal/net/socket.hpp"
 #include <utility>
 
+#include <zportal/net/socket.hpp>
 #include <zportal/session/operation.hpp>
 #include <zportal/session/receiver.hpp>
 #include <zportal/session/session.hpp>
@@ -32,7 +32,14 @@ zportal::Result<zportal::Session> zportal::Session::create_session(IoUring&& rin
 
 zportal::Session::Session(Session&& other) noexcept
     : ring_(std::move(other.ring_)), tun_(std::move(other.tun_)), socket_(std::move(other.socket_)),
-      receiver_(std::move(other.receiver_)), transmitter_(std::move(other.transmitter_)) {}
+      receiver_(std::move(other.receiver_)), transmitter_(std::move(other.transmitter_)) {
+    receiver_.ring_ = &ring_;
+    receiver_.tun_ = &tun_;
+    receiver_.socket_ = &socket_;
+    transmitter_.ring_ = &ring_;
+    transmitter_.tun_ = &tun_;
+    transmitter_.sock_ = &socket_;
+}
 
 zportal::Session& zportal::Session::operator=(Session&& other) noexcept {
     if (&other == this)
@@ -43,6 +50,13 @@ zportal::Session& zportal::Session::operator=(Session&& other) noexcept {
     socket_ = std::move(other.socket_);
     receiver_ = std::move(other.receiver_);
     transmitter_ = std::move(other.transmitter_);
+
+    receiver_.ring_ = &ring_;
+    receiver_.tun_ = &tun_;
+    receiver_.socket_ = &socket_;
+    transmitter_.ring_ = &ring_;
+    transmitter_.tun_ = &tun_;
+    transmitter_.sock_ = &socket_;
 
     return *this;
 }

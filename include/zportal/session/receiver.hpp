@@ -18,6 +18,8 @@
 
 namespace zportal {
 
+class Session;
+
 class Receiver {
   public:
     Receiver() noexcept = default;
@@ -35,6 +37,8 @@ class Receiver {
     bool is_valid() const noexcept;
     explicit operator bool() const noexcept;
 
+    friend class Session;
+
   private:
     IoUring* ring_{};
     TunDevice* tun_{};
@@ -50,7 +54,7 @@ class Receiver {
         std::size_t offset{};
     };
     std::queue<InputBuffer> input_buffer_queue_;
-    std::vector<std::uint32_t> buffer_refcounts_;
+    std::vector<std::int32_t> buffer_refcounts_;
 
     enum class ParseState { PARSING_HEADER, PARSING_PAYLOAD } state_{ParseState::PARSING_HEADER};
 
