@@ -5,6 +5,7 @@
 #include <liburing.h>
 #include <sys/socket.h>
 
+#include <utility>
 #include <zportal/iouring/iouring.hpp>
 #include <zportal/net/socket.hpp>
 #include <zportal/session/frame_header.hpp>
@@ -28,6 +29,29 @@ zportal::Result<zportal::Transmitter> zportal::Transmitter::create_transmitter(z
     transmitter.bg_ = *bg;
 
     return transmitter;
+}
+
+zportal::Transmitter::Transmitter(Transmitter&& other) noexcept
+    : ring_(std::exchange(other.ring_, nullptr)), tun_(std::exchange(other.tun_, nullptr)),
+      bg_(std::exchange(other.bg_, nullptr)), sock_(std::exchange(other.sock_, nullptr)),
+      frame_queue_(std::move(other.frame_queue_)), cooling_down_(std::exchange(other.cooling_down_, false)),
+      send_in_progress_(std::exchange(other.send_in_progress_, false)),
+      current_frame_state_(std::exchange(other.current_frame_state_, std::nullopt)) {}
+
+zportal::Transmitter& zportal::Transmitter::operator=(Transmitter&& other) noexcept {
+    if (&other == this)
+        return *this;
+
+    ring_ = std::exchange(other.ring_, nullptr);
+    tun_ = std::exchange(other.tun_, nullptr);
+    bg_ = std::exchange(other.bg_, nullptr);
+    sock_ = std::exchange(other.sock_, nullptr);
+    frame_queue_ = std::move(other.frame_queue_);
+    cooling_down_ = std::exchange(other.cooling_down_, false);
+    send_in_progress_ = std::exchange(other.send_in_progress_, false);
+    current_frame_state_ = std::exchange(other.current_frame_state_, std::nullopt);
+
+    return *this;
 }
 
 zportal::Result<void> zportal::Transmitter::arm_read() noexcept {

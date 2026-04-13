@@ -26,6 +26,11 @@ class Transmitter {
     static Result<Transmitter> create_transmitter(IoUring& ring, TunDevice& tun, Socket& sock,
                                                   std::uint16_t queue_length) noexcept;
 
+    Transmitter(Transmitter&&) noexcept;
+    Transmitter& operator=(Transmitter&&) noexcept;
+    Transmitter(const Transmitter&) = delete;
+    Transmitter& operator=(const Transmitter&) = delete;
+
     Result<void> arm_read() noexcept;
     Result<void> handle_cqe(const Cqe& cqe) noexcept;
 

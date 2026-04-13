@@ -1,7 +1,10 @@
+#include <limits>
 #include <new>
+#include <utility>
 
 #include <cassert>
 #include <cerrno>
+#include <cstdint>
 
 #include <liburing.h>
 
@@ -12,13 +15,17 @@
 #include <zportal/tools/error.hpp>
 
 zportal::Result<zportal::Receiver> zportal::Receiver::create_receiver(IoUring& ring, TunDevice& tun, Socket& socket,
-                                                                      std::size_t queue_length) noexcept {
+                                                                      std::size_t queue_length,
+                                                                      std::size_t buffer_size) noexcept {
     Receiver receiver;
     receiver.ring_ = &ring;
     receiver.tun_ = &tun;
     receiver.socket_ = &socket;
 
-    auto bg = receiver.ring_->create_buffer_group(queue_length, receiver.tun_->get_mtu());
+    if (buffer_size > std::numeric_limits<std::uint32_t>::max())
+        return Fail(ErrorCode::InvalidArgument);
+
+    auto bg = receiver.ring_->create_buffer_group(queue_length, static_cast<std::uint32_t>(buffer_size));
     if (!bg)
         return Fail(bg.error());
     receiver.bg_ = *bg;
@@ -31,6 +38,35 @@ zportal::Result<zportal::Receiver> zportal::Receiver::create_receiver(IoUring& r
     }
 
     return receiver;
+}
+
+zportal::Receiver::Receiver(Receiver&& other) noexcept
+    : ring_(std::exchange(other.ring_, nullptr)), tun_(std::exchange(other.tun_, nullptr)),
+      bg_(std::exchange(other.bg_, nullptr)), socket_(std::exchange(other.socket_, nullptr)),
+      cooling_down_(std::exchange(other.cooling_down_, false)), used_buffers_(std::exchange(other.used_buffers_, 0)),
+      input_buffer_queue_(std::move(other.input_buffer_queue_)), buffer_refcounts_(std::move(other.buffer_refcounts_)),
+      frame_(std::move(other.frame_)), payload_progress_(std::exchange(other.payload_progress_, 0)),
+      output_frame_queue_(std::move(other.output_frame_queue_)),
+      write_in_progress_(std::exchange(other.write_in_progress_, false)) {}
+
+zportal::Receiver& zportal::Receiver::operator=(Receiver&& other) noexcept {
+    if (&other == this)
+        return *this;
+
+    ring_ = std::exchange(other.ring_, nullptr);
+    tun_ = std::exchange(other.tun_, nullptr);
+    bg_ = std::exchange(other.bg_, nullptr);
+    socket_ = std::exchange(other.socket_, nullptr);
+    cooling_down_ = std::exchange(other.cooling_down_, false);
+    used_buffers_ = std::exchange(other.used_buffers_, 0);
+    input_buffer_queue_ = std::move(other.input_buffer_queue_);
+    buffer_refcounts_ = std::move(other.buffer_refcounts_);
+    frame_ = std::move(other.frame_);
+    payload_progress_ = std::exchange(other.payload_progress_, 0);
+    output_frame_queue_ = std::move(other.output_frame_queue_);
+    write_in_progress_ = std::exchange(other.write_in_progress_, false);
+
+    return *this;
 }
 
 zportal::Result<void> zportal::Receiver::arm_recv() noexcept {

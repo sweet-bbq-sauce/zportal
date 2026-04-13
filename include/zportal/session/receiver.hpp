@@ -21,8 +21,13 @@ namespace zportal {
 class Receiver {
   public:
     Receiver() noexcept = default;
-    static Result<Receiver> create_receiver(IoUring& ring, TunDevice& tun, Socket& socket,
-                                            std::size_t queue_length) noexcept;
+    static Result<Receiver> create_receiver(IoUring& ring, TunDevice& tun, Socket& socket, std::size_t queue_length,
+                                            std::size_t buffer_size) noexcept;
+
+    Receiver(Receiver&&) noexcept;
+    Receiver& operator=(Receiver&&) noexcept;
+    Receiver(const Receiver&) = delete;
+    Receiver& operator=(const Receiver&) = delete;
 
     Result<void> arm_recv() noexcept;
     Result<void> handle_cqe(const Cqe& cqe) noexcept;
