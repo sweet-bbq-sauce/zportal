@@ -12,18 +12,18 @@ static const auto socket_recv = [](zportal::Socket& socket, std::span<std::uint8
         return {};
 
     if (!socket)
-        return zportal::Fail(zportal::ErrorCode::InvalidSocket);
+        return zportal::fail(zportal::ErrorCode::InvalidSocket);
 
     std::size_t processed{};
     while (processed < data.size()) {
         const ssize_t n = ::recv(socket.get(), data.data() + processed, data.size() - processed, 0);
         if (n == 0) {
             socket.close();
-            return zportal::Fail(zportal::ErrorCode::PeerClosed);
+            return zportal::fail(zportal::ErrorCode::PeerClosed);
         } else if (n < 0) {
             // const auto err = errno;
             // socket.close();
-            return zportal::Fail({zportal::ErrorCode::RecvFailed, errno});
+            return zportal::fail({zportal::ErrorCode::RecvFailed, errno});
         }
 
         processed += static_cast<std::size_t>(n);
@@ -38,17 +38,17 @@ static const auto socket_send = [](zportal::Socket& socket,
         return {};
 
     if (!socket)
-        return zportal::Fail(zportal::ErrorCode::InvalidSocket);
+        return zportal::fail(zportal::ErrorCode::InvalidSocket);
 
     std::size_t processed{};
     while (processed < data.size()) {
         const ssize_t n = ::send(socket.get(), data.data() + processed, data.size() - processed, MSG_NOSIGNAL);
         if (n == 0) {
             // socket.close();
-            return zportal::Fail(zportal::ErrorCode::SendReturnedZero);
+            return zportal::fail(zportal::ErrorCode::SendReturnedZero);
         } else if (n < 0) {
             // socket.close();
-            return zportal::Fail({zportal::ErrorCode::SendFailed, errno});
+            return zportal::fail({zportal::ErrorCode::SendFailed, errno});
         }
 
         processed += static_cast<std::size_t>(n);
@@ -59,7 +59,7 @@ static const auto socket_send = [](zportal::Socket& socket,
 
 zportal::Result<void> zportal::socks5_connect(Socket& socket, const Address& address) noexcept {
     if (std::holds_alternative<HostPair>(address) && std::get<HostPair>(address).hostname.size() > 255)
-        return Fail(ErrorCode::SocksHostnameTooLong);
+        return fail(ErrorCode::SocksHostnameTooLong);
 
     // Auth method negotiation
     static const std::array<std::uint8_t, 3> method_request = {0x05, 0x01, 0x00}; // "no auth" only
@@ -75,9 +75,9 @@ zportal::Result<void> zportal::socks5_connect(Socket& socket, const Address& add
         return io_result;
 
     if (method_response[1] == 0xFF)
-        return Fail(ErrorCode::SocksAuthMethodUnsupported);
+        return fail(ErrorCode::SocksAuthMethodUnsupported);
     if (method_response[1] != 0x00)
-        return Fail(ErrorCode::SocksAuthMethodUnsupported);
+        return fail(ErrorCode::SocksAuthMethodUnsupported);
 
     // CONNECT command
     std::size_t connect_request_length{};
@@ -113,7 +113,7 @@ zportal::Result<void> zportal::socks5_connect(Socket& socket, const Address& add
 
             connect_request_length = 4 + 16 + 2;
         } else
-            return Fail(ErrorCode::SocksUnsupportedTargetFamily);
+            return fail(ErrorCode::SocksUnsupportedTargetFamily);
     }
 
     io_result = socket_send(socket, {connect_request.data(), connect_request_length});
@@ -127,7 +127,7 @@ zportal::Result<void> zportal::socks5_connect(Socket& socket, const Address& add
         return io_result;
 
     if (command_response[1] != 0x00)
-        return Fail(ErrorCode::SocksConnectFailed);
+        return fail(ErrorCode::SocksConnectFailed);
 
     std::size_t response_address_length{};
     if (command_response[3] == 0x01)
@@ -142,7 +142,7 @@ zportal::Result<void> zportal::socks5_connect(Socket& socket, const Address& add
 
         response_address_length = len + 2;
     } else
-        return Fail(ErrorCode::SocksUnsupportedTargetFamily);
+        return fail(ErrorCode::SocksUnsupportedTargetFamily);
 
     io_result = socket_recv(socket, {hole_for_response_address.data(), response_address_length});
     if (!io_result)

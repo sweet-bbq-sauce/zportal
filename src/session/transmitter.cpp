@@ -26,7 +26,7 @@ zportal::Result<zportal::Transmitter> zportal::Transmitter::create_transmitter(z
 
     auto bg = transmitter.ring_->create_buffer_group(queue_length, transmitter.tun_->get_mtu());
     if (!bg)
-        return Fail(bg.error());
+        return fail(bg.error());
     transmitter.bg_ = *bg;
 
     return transmitter;
@@ -57,11 +57,11 @@ zportal::Transmitter& zportal::Transmitter::operator=(Transmitter&& other) noexc
 
 zportal::Result<void> zportal::Transmitter::arm_read() noexcept {
     if (!is_valid())
-        return Fail(ErrorCode::InvalidTransmitter);
+        return fail(ErrorCode::InvalidTransmitter);
 
     auto sqe = ring_->get_sqe();
     if (!sqe)
-        return Fail(sqe.error());
+        return fail(sqe.error());
 
     Operation op;
     op.set_type(OperationType::READ);
@@ -71,18 +71,18 @@ zportal::Result<void> zportal::Transmitter::arm_read() noexcept {
 
     const auto submit_result = ring_->submit();
     if (!submit_result)
-        return Fail(submit_result.error());
+        return fail(submit_result.error());
 
     return {};
 }
 
 zportal::Result<void> zportal::Transmitter::handle_cqe(const Cqe& cqe) noexcept {
     if (!is_valid())
-        return Fail(ErrorCode::InvalidTransmitter);
+        return fail(ErrorCode::InvalidTransmitter);
 
     const auto type = cqe.operation().get_type();
     if (type != OperationType::SEND && type != OperationType::READ)
-        return Fail(ErrorCode::WrongOperationType);
+        return fail(ErrorCode::WrongOperationType);
 
     if (type == OperationType::SEND)
         return handle_send_cqe_(cqe);
@@ -100,10 +100,10 @@ zportal::Transmitter::operator bool() const noexcept {
 
 zportal::Result<void> zportal::Transmitter::handle_read_cqe_(const Cqe& cqe) noexcept {
     if (!is_valid())
-        return Fail(ErrorCode::InvalidTransmitter);
+        return fail(ErrorCode::InvalidTransmitter);
 
     if (cqe.operation().get_type() != OperationType::READ)
-        return Fail(ErrorCode::WrongOperationType);
+        return fail(ErrorCode::WrongOperationType);
 
     if (!cqe.ok()) {
         if (cqe.error() == ENOBUFS && !cqe.more()) {
@@ -112,12 +112,12 @@ zportal::Result<void> zportal::Transmitter::handle_read_cqe_(const Cqe& cqe) noe
             return kick_send_();
         }
 
-        return Fail({ErrorCode::TunReadFailed, cqe.error()});
+        return fail({ErrorCode::TunReadFailed, cqe.error()});
     }
 
     const auto bid = cqe.bid();
     if (!bid)
-        return Fail(ErrorCode::ReadCqeMissingBid);
+        return fail(ErrorCode::ReadCqeMissingBid);
 
     const std::uint32_t readen = static_cast<std::size_t>(cqe.result());
 
@@ -129,12 +129,12 @@ zportal::Result<void> zportal::Transmitter::handle_read_cqe_(const Cqe& cqe) noe
         const auto result = bg_->return_buffer(*bid);
         (void)result;
 
-        return Fail(ErrorCode::NotEnoughMemory);
+        return fail(ErrorCode::NotEnoughMemory);
     }
 
     if (!cqe.more() && !cooling_down_) {
         if (const auto arm_read_result = arm_read(); !arm_read_result)
-            return Fail(arm_read_result.error());
+            return fail(arm_read_result.error());
     }
 
     return kick_send_();
@@ -143,7 +143,7 @@ zportal::Result<void> zportal::Transmitter::handle_read_cqe_(const Cqe& cqe) noe
 zportal::Result<zportal::FrameHeader> zportal::Transmitter::create_frame_header_(const OutFrame& frame) noexcept {
     const auto buffer = bg_->get_buffer(frame.bid, frame.size);
     if (!buffer)
-        return Fail(buffer.error());
+        return fail(buffer.error());
 
     FrameHeader header;
     header.set_size(frame.size);
@@ -163,7 +163,7 @@ zportal::Result<void> zportal::Transmitter::kick_send_() noexcept {
         const auto frame = frame_queue_.front();
         const auto header = create_frame_header_(frame);
         if (!header)
-            return Fail(header.error());
+            return fail(header.error());
 
         CurrentFrameState state;
         state.frame = frame;
@@ -171,7 +171,7 @@ zportal::Result<void> zportal::Transmitter::kick_send_() noexcept {
         try {
             state.segments.reserve(2);
         } catch (const std::bad_alloc&) {
-            return Fail(ErrorCode::NotEnoughMemory);
+            return fail(ErrorCode::NotEnoughMemory);
         }
 
         current_frame_state_ = state;
@@ -180,10 +180,10 @@ zportal::Result<void> zportal::Transmitter::kick_send_() noexcept {
     auto& state = *current_frame_state_;
     const auto payload = bg_->get_buffer(state.frame.bid, state.frame.size);
     if (!payload)
-        return Fail(payload.error());
+        return fail(payload.error());
 
     if (state.bytes_sent >= FrameHeader::wire_size + static_cast<std::size_t>(state.frame.size))
-        return Fail(ErrorCode::InvalidState);
+        return fail(ErrorCode::InvalidState);
 
     state.segments.clear();
     if (state.bytes_sent < FrameHeader::wire_size) {
@@ -200,7 +200,7 @@ zportal::Result<void> zportal::Transmitter::kick_send_() noexcept {
 
     auto sqe = ring_->get_sqe();
     if (!sqe)
-        return Fail(sqe.error());
+        return fail(sqe.error());
 
     Operation operation;
     operation.set_type(OperationType::SEND);
@@ -209,7 +209,7 @@ zportal::Result<void> zportal::Transmitter::kick_send_() noexcept {
     ::io_uring_sqe_set_data64(*sqe, operation.serialize());
 
     if (const auto submit_result = ring_->submit(); !submit_result)
-        return Fail(submit_result.error());
+        return fail(submit_result.error());
 
     send_in_progress_ = true;
 
@@ -218,29 +218,29 @@ zportal::Result<void> zportal::Transmitter::kick_send_() noexcept {
 
 zportal::Result<void> zportal::Transmitter::handle_send_cqe_(const Cqe& cqe) noexcept {
     if (!is_valid())
-        return Fail(ErrorCode::InvalidTransmitter);
+        return fail(ErrorCode::InvalidTransmitter);
 
     if (cqe.operation().get_type() != OperationType::SEND)
-        return Fail(ErrorCode::WrongOperationType);
+        return fail(ErrorCode::WrongOperationType);
 
     send_in_progress_ = false;
 
     if (!cqe.ok())
-        return Fail({ErrorCode::SendFailed, cqe.error()});
+        return fail({ErrorCode::SendFailed, cqe.error()});
 
     const std::size_t sent = static_cast<std::size_t>(cqe.result());
 
     if (sent == 0)
-        return Fail(ErrorCode::SendReturnedZero);
+        return fail(ErrorCode::SendReturnedZero);
 
     if (!current_frame_state_)
-        return Fail(ErrorCode::InvalidState);
+        return fail(ErrorCode::InvalidState);
 
     auto& state = *current_frame_state_;
 
     const std::size_t total = FrameHeader::wire_size + static_cast<std::size_t>(state.frame.size);
     if (state.bytes_sent + sent > total)
-        return Fail(ErrorCode::InvalidState);
+        return fail(ErrorCode::InvalidState);
 
     state.bytes_sent += sent;
     if (state.bytes_sent == total) {
@@ -249,13 +249,13 @@ zportal::Result<void> zportal::Transmitter::handle_send_cqe_(const Cqe& cqe) noe
         frame_queue_.pop();
 
         if (const auto result = bg_->return_buffer(bid); !result)
-            return Fail(result.error());
+            return fail(result.error());
     }
 
     if (cooling_down_) {
         if (frame_queue_.size() <= bg_->get_buffer_count() / 2) {
             if (const auto result = arm_read(); !result)
-                return Fail(result.error());
+                return fail(result.error());
 
             cooling_down_ = false;
             std::cout << "TX backpressure: LOW watermark, rearming READ" << std::endl;

@@ -117,4 +117,6 @@ class Error {
 template <typename T> using Result = std::expected<T, Error>;
 using Fail = std::unexpected<Error>;
 
+Fail fail(const Error& err) noexcept;
+
 } // namespace zportal

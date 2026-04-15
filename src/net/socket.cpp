@@ -50,11 +50,11 @@ zportal::Socket::operator bool() const noexcept {
 
 zportal::Result<zportal::Socket> zportal::Socket::create_socket(sa_family_t family, int flags) noexcept {
     if (family != AF_INET && family != AF_INET6 && family != AF_UNIX)
-        return Fail(ErrorCode::InvalidSocketFamily);
+        return fail(ErrorCode::InvalidSocketFamily);
 
     const int fd = ::socket(family, SOCK_STREAM | flags, 0);
     if (fd < 0)
-        return Fail({ErrorCode::SocketCreateFailed, errno});
+        return fail({ErrorCode::SocketCreateFailed, errno});
 
     return Socket(fd, family);
 }
@@ -63,40 +63,40 @@ zportal::Socket::Socket(int fd, sa_family_t family) : fd_(fd), family_(family) {
 
 zportal::Result<zportal::SockAddress> zportal::Socket::get_local_address() const noexcept {
     if (!is_valid())
-        return Fail(ErrorCode::InvalidSocket);
+        return fail(ErrorCode::InvalidSocket);
 
     sockaddr_storage ss{};
     socklen_t len = sizeof(ss);
 
     if (::getsockname(fd_.get(), reinterpret_cast<sockaddr*>(&ss), &len) < 0)
-        return Fail({ErrorCode::GetSockNameFailed, errno});
+        return fail({ErrorCode::GetSockNameFailed, errno});
 
     return SockAddress::from_sockaddr(reinterpret_cast<const sockaddr*>(&ss), len);
 }
 
 zportal::Result<zportal::SockAddress> zportal::Socket::get_remote_address() const noexcept {
     if (!is_valid())
-        return Fail(ErrorCode::InvalidSocket);
+        return fail(ErrorCode::InvalidSocket);
 
     sockaddr_storage ss{};
     socklen_t len = sizeof(ss);
 
     if (::getpeername(fd_.get(), reinterpret_cast<sockaddr*>(&ss), &len) < 0)
-        return Fail({ErrorCode::GetPeerNameFailed, errno});
+        return fail({ErrorCode::GetPeerNameFailed, errno});
 
     return SockAddress::from_sockaddr(reinterpret_cast<const sockaddr*>(&ss), len);
 }
 
 zportal::Result<sa_family_t> zportal::Socket::detect_family() const noexcept {
     if (!is_valid())
-        return Fail(ErrorCode::InvalidSocket);
+        return fail(ErrorCode::InvalidSocket);
 
     if (family_ != AF_UNSPEC)
         return family_;
 
     const auto result = get_local_address();
     if (!result)
-        return Fail(result.error());
+        return fail(result.error());
 
     family_ = (*result).family();
     return family_;

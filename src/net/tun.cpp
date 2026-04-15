@@ -25,7 +25,7 @@ zportal::Result<zportal::TunDevice> zportal::TunDevice::create_tun_device(const 
     TunDevice tun;
     tun.fd_ = FileDescriptor(::open("/dev/net/tun", O_RDWR));
     if (!tun.fd_)
-        return Fail({ErrorCode::TunOpenFailed, errno});
+        return fail({ErrorCode::TunOpenFailed, errno});
 
     ifreq ifr{};
     ifr.ifr_flags = IFF_TUN | IFF_NO_PI;
@@ -34,7 +34,7 @@ zportal::Result<zportal::TunDevice> zportal::TunDevice::create_tun_device(const 
     if (::ioctl(tun.get_fd(), TUNSETIFF, &ifr) < 0) {
         const int err = errno;
         tun.close();
-        return Fail({ErrorCode::TunIoctlFailed, err});
+        return fail({ErrorCode::TunIoctlFailed, err});
     }
 
     tun.name_ = ifr.ifr_name;
@@ -42,14 +42,14 @@ zportal::Result<zportal::TunDevice> zportal::TunDevice::create_tun_device(const 
     if (tun.index_ == 0) {
         const int err = errno;
         tun.close();
-        return Fail({ErrorCode::TunNameToIndexFailed, err});
+        return fail({ErrorCode::TunNameToIndexFailed, err});
     }
 
     try {
         tun.set_cidr_(address);
         tun.set_mtu_(mtu);
     } catch (...) {
-        return Fail(ErrorCode::TunIpConfigFailed);
+        return fail(ErrorCode::TunIpConfigFailed);
     }
 
     return tun;

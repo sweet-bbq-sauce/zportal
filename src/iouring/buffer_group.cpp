@@ -23,13 +23,13 @@ zportal::BufferGroup::~BufferGroup() noexcept {
 zportal::Result<std::span<std::byte>> zportal::BufferGroup::get_buffer(std::uint16_t bid,
                                                                        std::optional<std::uint32_t> size) noexcept {
     if (!is_valid())
-        return Fail(ErrorCode::InvalidBufferGroup);
+        return fail(ErrorCode::InvalidBufferGroup);
 
     if (bid >= buffer_count_)
-        return Fail(ErrorCode::InvalidBid);
+        return fail(ErrorCode::InvalidBid);
 
     if (size && *size > buffer_size_)
-        return Fail(ErrorCode::InvalidSize);
+        return fail(ErrorCode::InvalidSize);
 
     std::byte* ptr = data_.get();
     const std::size_t offset = static_cast<std::size_t>(bid) * static_cast<std::size_t>(buffer_size_);
@@ -38,14 +38,14 @@ zportal::Result<std::span<std::byte>> zportal::BufferGroup::get_buffer(std::uint
 
 zportal::Result<void> zportal::BufferGroup::return_buffer(std::uint16_t bid) noexcept {
     if (!is_valid())
-        return Fail(ErrorCode::InvalidBufferGroup);
+        return fail(ErrorCode::InvalidBufferGroup);
 
     if (bid >= buffer_count_)
-        return Fail(ErrorCode::InvalidBid);
+        return fail(ErrorCode::InvalidBid);
 
     auto buffer = get_buffer(bid);
     if (!buffer)
-        return Fail(buffer.error());
+        return fail(buffer.error());
 
     ::io_uring_buf_ring_add(br_, buffer->data(), buffer->size(), bid, mask_, 0);
     ::io_uring_buf_ring_advance(br_, 1);

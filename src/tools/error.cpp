@@ -138,3 +138,7 @@ std::string zportal::Error::to_string() const {
 
     return out.str();
 }
+
+zportal::Fail zportal::fail(const Error& err) noexcept {
+    return Fail(err);
+}

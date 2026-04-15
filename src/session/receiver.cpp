@@ -24,18 +24,18 @@ zportal::Result<zportal::Receiver> zportal::Receiver::create_receiver(IoUring& r
     receiver.socket_ = &socket;
 
     if (buffer_size > std::numeric_limits<std::uint32_t>::max())
-        return Fail(ErrorCode::InvalidArgument);
+        return fail(ErrorCode::InvalidArgument);
 
     auto bg = receiver.ring_->create_buffer_group(queue_length, static_cast<std::uint32_t>(buffer_size));
     if (!bg)
-        return Fail(bg.error());
+        return fail(bg.error());
     receiver.bg_ = *bg;
 
     try {
         receiver.buffer_refcounts_.resize(queue_length, 0);
     } catch (const std::bad_alloc&) {
         // TODO: delete buffer group
-        return Fail(ErrorCode::NotEnoughMemory);
+        return fail(ErrorCode::NotEnoughMemory);
     }
 
     return receiver;
@@ -77,11 +77,11 @@ zportal::Receiver& zportal::Receiver::operator=(Receiver&& other) noexcept {
 
 zportal::Result<void> zportal::Receiver::arm_recv() noexcept {
     if (!is_valid())
-        return Fail(ErrorCode::InvalidReceiver);
+        return fail(ErrorCode::InvalidReceiver);
 
     auto sqe = ring_->get_sqe();
     if (!sqe)
-        return Fail(sqe.error());
+        return fail(sqe.error());
 
     Operation operation;
     operation.set_type(OperationType::RECV);
@@ -93,18 +93,18 @@ zportal::Result<void> zportal::Receiver::arm_recv() noexcept {
 
     const auto submit_result = ring_->submit();
     if (!submit_result)
-        return Fail(submit_result.error());
+        return fail(submit_result.error());
 
     return {};
 }
 
 zportal::Result<void> zportal::Receiver::handle_cqe(const Cqe& cqe) noexcept {
     if (!is_valid())
-        return Fail(ErrorCode::InvalidReceiver);
+        return fail(ErrorCode::InvalidReceiver);
 
     const auto type = cqe.operation().get_type();
     if (type != OperationType::RECV && type != OperationType::WRITE)
-        return Fail(ErrorCode::WrongOperationType);
+        return fail(ErrorCode::WrongOperationType);
 
     if (type == OperationType::RECV)
         return handle_recv_cqe_(cqe);
@@ -122,18 +122,18 @@ zportal::Receiver::operator bool() const noexcept {
 
 zportal::Result<void> zportal::Receiver::handle_write_cqe_(const Cqe& cqe) noexcept {
     if (!is_valid())
-        return Fail(ErrorCode::InvalidReceiver);
+        return fail(ErrorCode::InvalidReceiver);
 
     if (cqe.operation().get_type() != OperationType::WRITE)
-        return Fail(ErrorCode::WrongOperationType);
+        return fail(ErrorCode::WrongOperationType);
 
     write_in_progress_ = false;
 
     if (output_frame_queue_.empty())
-        return Fail(ErrorCode::WriteUnknownFrame);
+        return fail(ErrorCode::WriteUnknownFrame);
 
     if (!cqe.ok())
-        return Fail({ErrorCode::TunWriteFailed, cqe.error()});
+        return fail({ErrorCode::TunWriteFailed, cqe.error()});
 
     const auto& frame = output_frame_queue_.front();
     const std::size_t frame_size = ([&]() {
@@ -146,7 +146,7 @@ zportal::Result<void> zportal::Receiver::handle_write_cqe_(const Cqe& cqe) noexc
 
     const std::size_t written = static_cast<std::size_t>(cqe.result());
     if (written != frame_size)
-        return Fail(ErrorCode::TunPartialWrite);
+        return fail(ErrorCode::TunPartialWrite);
 
     for (std::uint16_t bid : frame.bid) {
         buffer_refcounts_[bid]--;
@@ -154,7 +154,7 @@ zportal::Result<void> zportal::Receiver::handle_write_cqe_(const Cqe& cqe) noexc
             assert(buffer_refcounts_[bid] == 0);
 
             if (const auto result = bg_->return_buffer(bid); !result)
-                return Fail(result.error());
+                return fail(result.error());
 
             used_buffers_--;
         }
@@ -164,7 +164,7 @@ zportal::Result<void> zportal::Receiver::handle_write_cqe_(const Cqe& cqe) noexc
 
     if (cooling_down_ && (used_buffers_ < bg_->get_buffer_count() / 2)) {
         if (const auto arm_recv_result = arm_recv(); !arm_recv_result)
-            return Fail(arm_recv_result.error());
+            return fail(arm_recv_result.error());
 
         cooling_down_ = false;
         std::cout << "RX backpressure: LOW watermark, rearming RECV" << std::endl;
@@ -175,10 +175,10 @@ zportal::Result<void> zportal::Receiver::handle_write_cqe_(const Cqe& cqe) noexc
 
 zportal::Result<void> zportal::Receiver::handle_recv_cqe_(const Cqe& cqe) noexcept {
     if (!is_valid())
-        return Fail(ErrorCode::InvalidReceiver);
+        return fail(ErrorCode::InvalidReceiver);
 
     if (cqe.operation().get_type() != OperationType::RECV)
-        return Fail(ErrorCode::WrongOperationType);
+        return fail(ErrorCode::WrongOperationType);
 
     if (!cqe.ok()) {
         if (cqe.error() == ENOBUFS && !cqe.more()) {
@@ -186,31 +186,31 @@ zportal::Result<void> zportal::Receiver::handle_recv_cqe_(const Cqe& cqe) noexce
             std::cout << "RX backpressure: HIGH watermark, stopping RECV" << std::endl;
             return kick_write_();
         }
-        return Fail({ErrorCode::RecvFailed, cqe.error()});
+        return fail({ErrorCode::RecvFailed, cqe.error()});
     }
 
     used_buffers_++;
 
     const std::uint32_t readen = cqe.result();
     if (readen == 0)
-        return Fail(ErrorCode::PeerClosed);
+        return fail(ErrorCode::PeerClosed);
 
     const auto bid = cqe.bid();
     if (!bid)
-        return Fail(ErrorCode::RecvCqeMissingBid);
+        return fail(ErrorCode::RecvCqeMissingBid);
 
     try {
         input_buffer_queue_.push({.bid = *bid, .size = static_cast<std::size_t>(readen)});
     } catch (const std::bad_alloc&) {
-        return Fail(ErrorCode::NotEnoughMemory);
+        return fail(ErrorCode::NotEnoughMemory);
     }
 
     if (const auto kick_parse_result = kick_parse_(); !kick_parse_result)
-        return Fail(kick_parse_result.error());
+        return fail(kick_parse_result.error());
 
     if (!cqe.more() && !cooling_down_) {
         if (const auto arm_recv_result = arm_recv(); !arm_recv_result)
-            return Fail(arm_recv_result.error());
+            return fail(arm_recv_result.error());
     }
 
     return kick_write_();
@@ -218,21 +218,21 @@ zportal::Result<void> zportal::Receiver::handle_recv_cqe_(const Cqe& cqe) noexce
 
 zportal::Result<void> zportal::Receiver::kick_parse_() noexcept {
     if (!is_valid())
-        return Fail(ErrorCode::InvalidReceiver);
+        return fail(ErrorCode::InvalidReceiver);
 
     while (!input_buffer_queue_.empty()) {
         InputBuffer& input_buffer = input_buffer_queue_.front();
 
         if (input_buffer.offset >= input_buffer.size)
-            return Fail(ErrorCode::InvalidState);
+            return fail(ErrorCode::InvalidState);
 
         if (state_ == ParseState::PARSING_HEADER) {
             if (header_progress_ >= FrameHeader::wire_size)
-                return Fail(ErrorCode::InvalidState);
+                return fail(ErrorCode::InvalidState);
 
             auto buffer_span = bg_->get_buffer(input_buffer.bid, static_cast<std::uint32_t>(input_buffer.size));
             if (!buffer_span)
-                return Fail(buffer_span.error());
+                return fail(buffer_span.error());
 
             const std::size_t take =
                 std::min(input_buffer.size - input_buffer.offset, FrameHeader::wire_size - header_progress_);
@@ -245,10 +245,10 @@ zportal::Result<void> zportal::Receiver::kick_parse_() noexcept {
                 header_progress_ = 0;
 
                 if (!header_.is_magic_valid())
-                    return Fail(ErrorCode::InvalidMagic);
+                    return fail(ErrorCode::InvalidMagic);
 
                 if (header_.get_size() == 0 || header_.get_size() > tun_->get_mtu())
-                    return Fail(ErrorCode::InvalidSize);
+                    return fail(ErrorCode::InvalidSize);
 
                 state_ = ParseState::PARSING_PAYLOAD;
             }
@@ -256,11 +256,11 @@ zportal::Result<void> zportal::Receiver::kick_parse_() noexcept {
         } else if (state_ == ParseState::PARSING_PAYLOAD) {
             const std::size_t payload_size = static_cast<std::size_t>(header_.get_size());
             if (payload_progress_ >= payload_size)
-                return Fail(ErrorCode::InvalidState);
+                return fail(ErrorCode::InvalidState);
 
             auto buffer_span = bg_->get_buffer(input_buffer.bid, static_cast<std::uint32_t>(input_buffer.size));
             if (!buffer_span)
-                return Fail(buffer_span.error());
+                return fail(buffer_span.error());
 
             const std::size_t take =
                 std::min(input_buffer.size - input_buffer.offset, payload_size - payload_progress_);
@@ -271,7 +271,7 @@ zportal::Result<void> zportal::Receiver::kick_parse_() noexcept {
                 frame_.bid.push_back(input_buffer.bid);
                 frame_.segments.push_back({.iov_base = buffer_span->data() + input_buffer.offset, .iov_len = take});
             } catch (const std::bad_alloc&) {
-                return Fail(ErrorCode::NotEnoughMemory);
+                return fail(ErrorCode::NotEnoughMemory);
             }
 
             input_buffer.offset += take;
@@ -281,24 +281,24 @@ zportal::Result<void> zportal::Receiver::kick_parse_() noexcept {
                 payload_progress_ = 0;
 
                 if (header_.get_crc() != crc32c(frame_.segments))
-                    return Fail(ErrorCode::FrameCrcMismatch);
+                    return fail(ErrorCode::FrameCrcMismatch);
 
                 try {
                     output_frame_queue_.push(frame_);
                 } catch (const std::bad_alloc&) {
-                    return Fail(ErrorCode::NotEnoughMemory);
+                    return fail(ErrorCode::NotEnoughMemory);
                 }
 
                 frame_ = OutputFrame{};
                 state_ = ParseState::PARSING_HEADER;
             }
         } else
-            return Fail(ErrorCode::InvalidEnumValue);
+            return fail(ErrorCode::InvalidEnumValue);
 
         if (input_buffer.offset == input_buffer.size) {
             if (buffer_refcounts_[input_buffer.bid] == 0) {
                 if (const auto result = bg_->return_buffer(input_buffer.bid); !result)
-                    return Fail(result.error());
+                    return fail(result.error());
 
                 used_buffers_--;
             }
@@ -312,7 +312,7 @@ zportal::Result<void> zportal::Receiver::kick_parse_() noexcept {
 
 zportal::Result<void> zportal::Receiver::kick_write_() noexcept {
     if (!is_valid())
-        return Fail(ErrorCode::InvalidReceiver);
+        return fail(ErrorCode::InvalidReceiver);
 
     if (write_in_progress_)
         return {};
@@ -324,7 +324,7 @@ zportal::Result<void> zportal::Receiver::kick_write_() noexcept {
 
     auto sqe = ring_->get_sqe();
     if (!sqe)
-        return Fail(sqe.error());
+        return fail(sqe.error());
 
     Operation operation;
     operation.set_type(OperationType::WRITE);
@@ -334,7 +334,7 @@ zportal::Result<void> zportal::Receiver::kick_write_() noexcept {
     ::io_uring_sqe_set_data64(*sqe, operation.serialize());
 
     if (const auto submit_result = ring_->submit(); !submit_result)
-        return Fail(submit_result.error());
+        return fail(submit_result.error());
 
     write_in_progress_ = true;
 

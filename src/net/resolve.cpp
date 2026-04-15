@@ -22,16 +22,16 @@ zportal::Result<zportal::SockAddress> zportal::resolve(const Address& address) n
         code != 0) {
         switch (code) {
         case EAI_NONAME:
-            return Fail(ErrorCode::ResolveNotFound);
+            return fail(ErrorCode::ResolveNotFound);
 
         case EAI_MEMORY:
-            return Fail(ErrorCode::NotEnoughMemory);
+            return fail(ErrorCode::NotEnoughMemory);
 
         case EAI_AGAIN:
-            return Fail(ErrorCode::ResolveTemporaryFailure);
+            return fail(ErrorCode::ResolveTemporaryFailure);
 
         case EAI_SYSTEM:
-            return Fail({ErrorCode::ResolveSystemError, code, ::gai_strerror(code)});
+            return fail({ErrorCode::ResolveSystemError, code, ::gai_strerror(code)});
 
         case EAI_BADFLAGS:
         case EAI_FAMILY:
@@ -40,11 +40,11 @@ zportal::Result<zportal::SockAddress> zportal::resolve(const Address& address) n
 #if defined(EAI_ADDRFAMILY)
         case EAI_ADDRFAMILY:
 #endif
-            return Fail(ErrorCode::ResolveInvalidRequest);
+            return fail(ErrorCode::ResolveInvalidRequest);
 
         case EAI_FAIL:
         default:
-            return Fail(ErrorCode::ResolveFailed);
+            return fail(ErrorCode::ResolveFailed);
         }
     }
 
@@ -53,7 +53,7 @@ zportal::Result<zportal::SockAddress> zportal::resolve(const Address& address) n
         resolved = SockAddress::from_sockaddr(result->ai_addr, result->ai_addrlen);
     } catch (...) {
         ::freeaddrinfo(result);
-        return Fail(ErrorCode::AddressParseFailed);
+        return fail(ErrorCode::AddressParseFailed);
     }
 
     ::freeaddrinfo(result);
