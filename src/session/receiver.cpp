@@ -1,3 +1,4 @@
+#include <iostream>
 #include <limits>
 #include <new>
 #include <utility>
@@ -166,6 +167,7 @@ zportal::Result<void> zportal::Receiver::handle_write_cqe_(const Cqe& cqe) noexc
             return Fail(arm_recv_result.error());
 
         cooling_down_ = false;
+        std::cout << "RX backpressure: LOW watermark, rearming RECV" << std::endl;
     }
 
     return kick_write_();
@@ -179,8 +181,9 @@ zportal::Result<void> zportal::Receiver::handle_recv_cqe_(const Cqe& cqe) noexce
         return Fail(ErrorCode::WrongOperationType);
 
     if (!cqe.ok()) {
-        if (cqe.error() == ENOBUFS) {
+        if (cqe.error() == ENOBUFS && !cqe.more()) {
             cooling_down_ = true;
+            std::cout << "RX backpressure: HIGH watermark, stopping RECV" << std::endl;
             return kick_write_();
         }
         return Fail({ErrorCode::RecvFailed, cqe.error()});
@@ -204,6 +207,11 @@ zportal::Result<void> zportal::Receiver::handle_recv_cqe_(const Cqe& cqe) noexce
 
     if (const auto kick_parse_result = kick_parse_(); !kick_parse_result)
         return Fail(kick_parse_result.error());
+
+    if (!cqe.more() && !cooling_down_) {
+        if (const auto arm_recv_result = arm_recv(); !arm_recv_result)
+            return Fail(arm_recv_result.error());
+    }
 
     return kick_write_();
 }

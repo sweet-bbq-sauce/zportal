@@ -1,3 +1,4 @@
+#include <iostream>
 #include <new>
 
 #include <cerrno>
@@ -107,6 +108,7 @@ zportal::Result<void> zportal::Transmitter::handle_read_cqe_(const Cqe& cqe) noe
     if (!cqe.ok()) {
         if (cqe.error() == ENOBUFS && !cqe.more()) {
             cooling_down_ = true;
+            std::cout << "TX backpressure: HIGH watermark, stopping READ" << std::endl;
             return kick_send_();
         }
 
@@ -128,6 +130,11 @@ zportal::Result<void> zportal::Transmitter::handle_read_cqe_(const Cqe& cqe) noe
         (void)result;
 
         return Fail(ErrorCode::NotEnoughMemory);
+    }
+
+    if (!cqe.more() && !cooling_down_) {
+        if (const auto arm_read_result = arm_read(); !arm_read_result)
+            return Fail(arm_read_result.error());
     }
 
     return kick_send_();
@@ -251,6 +258,7 @@ zportal::Result<void> zportal::Transmitter::handle_send_cqe_(const Cqe& cqe) noe
                 return Fail(result.error());
 
             cooling_down_ = false;
+            std::cout << "TX backpressure: LOW watermark, rearming READ" << std::endl;
         }
     }
 
