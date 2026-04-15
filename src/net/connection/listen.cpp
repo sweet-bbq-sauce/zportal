@@ -11,7 +11,9 @@ zportal::Result<zportal::Socket> zportal::create_listener(const Address& address
         return fail(result.error());
 
     const auto& resolved = *result;
-    auto sock = Socket::create_socket(resolved.family());
+    auto sock = Socket::create_socket(resolved.family(), SOCK_CLOEXEC);
+    if (!sock)
+        return fail(sock.error());
 
     const int yes = 1;
     if (::setsockopt((*sock).get(), SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) != 0)

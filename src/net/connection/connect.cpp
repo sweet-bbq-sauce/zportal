@@ -16,12 +16,12 @@ zportal::Result<zportal::Socket> zportal::connect_to(const Address& target,
         return fail(result.error());
 
     const auto& address = *result;
-    auto sock = Socket::create_socket(address.family());
+    auto sock = Socket::create_socket(address.family(), SOCK_CLOEXEC);
     if (!sock)
         return fail(sock.error());
 
     if (::connect((*sock).get(), address.get(), address.length()) != 0)
-        return fail(ErrorCode::ConnectFailed);
+        return fail({ErrorCode::ConnectFailed, errno});
 
     if (proxies.empty())
         return sock;
