@@ -54,6 +54,7 @@ enum class ErrorCode : std::uint32_t {
     NotEnoughMemory = 0x500,
     NotEnoughSqe,
     PosixMemalignFailed,
+    SysConfFailed,
 
     // Internal errors
     RecvParserError = 0x600,

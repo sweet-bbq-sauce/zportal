@@ -1,20 +1,20 @@
-#include <cstdlib>
-#include <liburing/io_uring.h>
 #include <memory>
 #include <new>
-#include <unistd.h>
 #include <utility>
 #include <vector>
 
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
 
 #include <liburing.h>
+#include <unistd.h>
 
 #include <zportal/iouring/buffer_group.hpp>
 #include <zportal/iouring/iouring.hpp>
 #include <zportal/tools/error.hpp>
+#include <zportal/tools/system.hpp>
 
 zportal::Result<zportal::IoUring> zportal::IoUring::create_queue(unsigned entries) noexcept {
     IoUring ring;
@@ -128,11 +128,14 @@ zportal::Result<zportal::BufferGroup*> zportal::IoUring::create_buffer_group(std
     if (!bg->br_)
         return fail({ErrorCode::RingBufferRingSetupFailed, -setup_error});
 #else
-    static const std::size_t page_size = static_cast<std::size_t>(::sysconf(_SC_PAGESIZE));
-    const std::size_t ring_bytes_raw = std::size_t(bg->buffer_count_) * sizeof(io_uring_buf);
-    const std::size_t ring_bytes = ((ring_bytes_raw + page_size - 1) / page_size) * page_size;
+    const auto page_size = system::get_page_size();
+    if (!page_size)
+        return fail(page_size.error());
 
-    if (const int result = ::posix_memalign(reinterpret_cast<void**>(&bg->br_), page_size, ring_bytes); result != 0)
+    const std::size_t ring_bytes_raw = std::size_t(bg->buffer_count_) * sizeof(io_uring_buf);
+    const std::size_t ring_bytes = ((ring_bytes_raw + *page_size - 1) / *page_size) * *page_size;
+
+    if (const int result = ::posix_memalign(reinterpret_cast<void**>(&bg->br_), *page_size, ring_bytes); result != 0)
         return fail(ErrorCode::PosixMemalignFailed);
 
     #if HAVE_IO_URING_BUF_RING_INIT

@@ -5,5 +5,6 @@ set(SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/error.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/file_descriptor.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/support_check.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/system.cpp"
     PARENT_SCOPE
 )
