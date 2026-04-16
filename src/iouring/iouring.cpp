@@ -126,7 +126,8 @@ zportal::Result<zportal::BufferGroup*> zportal::IoUring::create_buffer_group(std
         ::io_uring_setup_buf_ring(&ring_, static_cast<unsigned int>(bg->buffer_count_), bg->bgid_, 0, &setup_error);
 
     if (!bg->br_)
-        return fail({ErrorCode::RingBufferRingSetupFailed, -setup_error});
+        return fail({ErrorCode::RingBufferRingSetupFailed,
+                     setup_error == 0 ? EIO : (setup_error > 0 ? setup_error : -setup_error)});
 #else
     const auto page_size = system::get_page_size();
     if (!page_size)
@@ -136,7 +137,7 @@ zportal::Result<zportal::BufferGroup*> zportal::IoUring::create_buffer_group(std
     const std::size_t ring_bytes = ((ring_bytes_raw + *page_size - 1) / *page_size) * *page_size;
 
     if (const int result = ::posix_memalign(reinterpret_cast<void**>(&bg->br_), *page_size, ring_bytes); result != 0)
-        return fail(ErrorCode::PosixMemalignFailed);
+        return fail({ErrorCode::PosixMemalignFailed, result});
 
     #if HAVE_IO_URING_BUF_RING_INIT
     ::io_uring_buf_ring_init(bg->br_);
