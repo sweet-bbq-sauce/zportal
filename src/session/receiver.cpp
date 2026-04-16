@@ -14,6 +14,7 @@
 #include <zportal/session/receiver.hpp>
 #include <zportal/tools/crc.hpp>
 #include <zportal/tools/error.hpp>
+#include <zportal/tools/support_check.hpp>
 
 zportal::Result<zportal::Receiver> zportal::Receiver::create_receiver(IoUring& ring, TunDevice& tun, Socket& socket,
                                                                       std::size_t queue_length,
@@ -85,11 +86,23 @@ zportal::Result<void> zportal::Receiver::arm_recv() noexcept {
 
     Operation operation;
     operation.set_type(OperationType::RECV);
-
-    ::io_uring_prep_recv_multishot(*sqe, socket_->get(), nullptr, 0, 0);
-    ::io_uring_sqe_set_flags(*sqe, IOSQE_BUFFER_SELECT);
-    (*sqe)->buf_group = bg_->get_bgid();
     ::io_uring_sqe_set_data64(*sqe, operation.serialize());
+
+#if HAVE_IO_URING_PREP_RECV_MULTISHOT
+    const auto check_result = support_check::recv_multishot();
+    if (!check_result)
+        return fail(check_result.error());
+
+    if (*check_result)
+        ::io_uring_prep_recv_multishot(*sqe, socket_->get(), nullptr, 0, 0);
+    else
+        ::io_uring_prep_recv(*sqe, socket_->get(), nullptr, 0, 0);
+#else
+    ::io_uring_prep_recv(*sqe, socket_->get(), nullptr, 0, 0);
+#endif
+
+    (*sqe)->flags |= IOSQE_BUFFER_SELECT;
+    (*sqe)->buf_group = bg_->get_bgid();
 
     const auto submit_result = ring_->submit();
     if (!submit_result)

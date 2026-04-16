@@ -36,6 +36,7 @@ zportal::Result<bool> zportal::support_check::recv_multishot() noexcept {
     if (cache)
         return *cache;
 
+#if HAVE_IO_URING_PREP_RECV_MULTISHOT
     auto ring = IoUring::create_queue(1);
     if (!ring)
         return fail(ring.error());
@@ -43,7 +44,9 @@ zportal::Result<bool> zportal::support_check::recv_multishot() noexcept {
     // [0] is sender
     // [1] is receiver
     int fd[2];
-    ::socketpair(AF_UNIX, SOCK_STREAM, 0, fd);
+    if (const int result = ::socketpair(AF_UNIX, SOCK_STREAM, 0, fd); result < 0)
+        return fail({ErrorCode::SocketPairFailed, errno});
+
     zportal::Socket socket[2] = {zportal::Socket{fd[0]}, zportal::Socket{fd[1]}};
 
     auto bg = ring->create_buffer_group(2, 1024);
@@ -72,6 +75,9 @@ zportal::Result<bool> zportal::support_check::recv_multishot() noexcept {
         cache = true;
     else
         cache = false;
+#else
+    cache = false;
+#endif
 
     return *cache;
 }

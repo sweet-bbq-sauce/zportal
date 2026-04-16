@@ -32,6 +32,7 @@ enum class ErrorCode : std::uint32_t {
     GetSockNameFailed,
     GetPeerNameFailed,
     SendReturnedZero,
+    SocketPairFailed,
 
     // TUN errors
     TunOpenFailed = 0x300,

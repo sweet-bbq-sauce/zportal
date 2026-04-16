@@ -1,12 +1,12 @@
 #include <iostream>
 #include <new>
+#include <utility>
 
 #include <cerrno>
 
 #include <liburing.h>
 #include <sys/socket.h>
 
-#include <utility>
 #include <zportal/iouring/iouring.hpp>
 #include <zportal/net/socket.hpp>
 #include <zportal/session/frame_header.hpp>
@@ -14,6 +14,7 @@
 #include <zportal/session/transmitter.hpp>
 #include <zportal/tools/crc.hpp>
 #include <zportal/tools/error.hpp>
+#include <zportal/tools/support_check.hpp>
 
 zportal::Result<zportal::Transmitter> zportal::Transmitter::create_transmitter(zportal::IoUring& ring,
                                                                                zportal::TunDevice& tun,
@@ -65,9 +66,25 @@ zportal::Result<void> zportal::Transmitter::arm_read() noexcept {
 
     Operation op;
     op.set_type(OperationType::READ);
-
-    ::io_uring_prep_read_multishot(*sqe, tun_->get_fd(), 0, 0, bg_->get_bgid());
     ::io_uring_sqe_set_data64(*sqe, op.serialize());
+
+#if HAVE_IO_URING_PREP_READ_MULTISHOT
+    const auto check_result = support_check::read_multishot();
+    if (!check_result)
+        return fail(check_result.error());
+
+    if (*check_result)
+        ::io_uring_prep_read_multishot(*sqe, tun_->get_fd(), 0, 0, bg_->get_bgid());
+    else {
+        ::io_uring_prep_read(*sqe, tun_->get_fd(), nullptr, 0, 0);
+        (*sqe)->flags |= IOSQE_BUFFER_SELECT;
+        (*sqe)->buf_group = bg_->get_bgid();
+    }
+#else
+    ::io_uring_prep_read(*sqe, tun_->get_fd(), nullptr, 0, 0);
+    (*sqe)->flags |= IOSQE_BUFFER_SELECT;
+    (*sqe)->buf_group = bg_->get_bgid();
+#endif
 
     const auto submit_result = ring_->submit();
     if (!submit_result)
