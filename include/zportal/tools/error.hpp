@@ -48,10 +48,12 @@ enum class ErrorCode : std::uint32_t {
     RingCreateQueueFailed,
     RingBufferRingSetupFailed,
     RingProbeNotSupported,
+    RingRegisterBufRingFailed,
 
     // Resource errors
     NotEnoughMemory = 0x500,
     NotEnoughSqe,
+    PosixMemalignFailed,
 
     // Internal errors
     RecvParserError = 0x600,

@@ -1,10 +1,14 @@
+#include <cstdlib>
+#include <liburing/io_uring.h>
 #include <memory>
 #include <new>
+#include <unistd.h>
 #include <utility>
 #include <vector>
 
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 
 #include <liburing.h>
 
@@ -114,13 +118,41 @@ zportal::Result<zportal::BufferGroup*> zportal::IoUring::create_buffer_group(std
     if (!bg->data_)
         return fail(ErrorCode::NotEnoughMemory);
 
-    int setup_error{};
     bg->bgid_ = get_next_bgid_();
+
+#if HAVE_IO_URING_SETUP_BUF_RING
+    int setup_error{};
     bg->br_ =
         ::io_uring_setup_buf_ring(&ring_, static_cast<unsigned int>(bg->buffer_count_), bg->bgid_, 0, &setup_error);
 
     if (!bg->br_)
         return fail({ErrorCode::RingBufferRingSetupFailed, -setup_error});
+#else
+    static const std::size_t page_size = static_cast<std::size_t>(::sysconf(_SC_PAGESIZE));
+    const std::size_t ring_bytes_raw = std::size_t(bg->buffer_count_) * sizeof(io_uring_buf);
+    const std::size_t ring_bytes = ((ring_bytes_raw + page_size - 1) / page_size) * page_size;
+
+    if (const int result = ::posix_memalign(reinterpret_cast<void**>(&bg->br_), page_size, ring_bytes); result != 0)
+        return fail(ErrorCode::PosixMemalignFailed);
+
+    #if HAVE_IO_URING_BUF_RING_INIT
+    ::io_uring_buf_ring_init(bg->br_);
+    #else
+    std::memset(bg->br_, 0, ring_bytes);
+    #endif
+
+    io_uring_buf_reg reg{};
+    reg.ring_addr = reinterpret_cast<unsigned long>(bg->br_);
+    reg.ring_entries = static_cast<std::uint32_t>(bg->buffer_count_);
+    reg.bgid = bg->bgid_;
+
+    if (const int result = ::io_uring_register_buf_ring(&ring_, &reg, 0); result < 0) {
+        std::free(bg->br_);
+        bg->br_ = nullptr;
+
+        return fail({ErrorCode::RingRegisterBufRingFailed, -result});
+    }
+#endif
 
     bg->mask_ = ::io_uring_buf_ring_mask(static_cast<std::uint32_t>(bg->buffer_count_));
     for (std::uint16_t bid = 0; bid < bg->buffer_count_; bid++) {

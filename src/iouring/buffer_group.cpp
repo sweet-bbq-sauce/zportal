@@ -1,6 +1,7 @@
 #include <optional>
 
 #include <cstddef>
+#include <cstdlib>
 
 #include <liburing.h>
 
@@ -12,10 +13,16 @@ zportal::BufferGroup::~BufferGroup() noexcept {
     if (!is_valid())
         return;
 
+#if HAVE_IO_URING_SETUP_BUF_RING
     if (const int result =
             ::io_uring_free_buf_ring(ring_, br_, static_cast<unsigned int>(buffer_count_), static_cast<int>(bgid_));
         result < 0)
         DEBUG_ERRNO(-result, "io_uring_free_buf_ring()");
+#else
+    if (const int result = ::io_uring_unregister_buf_ring(ring_, bgid_); result < 0)
+        DEBUG_ERRNO(-result, "io_uring_unregister_buf_ring()");
+    std::free(br_);
+#endif
 
     br_ = nullptr;
 }

@@ -66,11 +66,9 @@ zportal::Result<bool> zportal::support_check::recv_multishot() noexcept {
     if (!cqe)
         return fail(cqe.error());
 
-    const int result = (*cqe).result();
+    const int result = cqe->result();
 
-    if (result == -EINVAL || result == -EOPNOTSUPP || result == -ENOTSUP)
-        cache = false;
-    else if (result == -EAGAIN || result >= 0)
+    if (result == -EAGAIN || result >= 0)
         cache = true;
     else
         cache = false;
