@@ -33,6 +33,8 @@ enum class ErrorCode : std::uint32_t {
     GetPeerNameFailed,
     SendReturnedZero,
     SocketPairFailed,
+    InetPtonFailed,
+    InetNtopFailed,
 
     // TUN errors
     TunOpenFailed = 0x300,
@@ -42,6 +44,7 @@ enum class ErrorCode : std::uint32_t {
     TunIoctlFailed,
     TunNameToIndexFailed,
     TunIpConfigFailed,
+    NetlinkError,
 
     // io_uring errors
     RingSubmitFailed = 0x400,

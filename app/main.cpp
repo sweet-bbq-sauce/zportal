@@ -74,7 +74,11 @@ int main(int argn, char* argv[]) {
         std::cout << "Connected to " << zportal::to_string(*cfg.connect_address) << std::endl;
     }
 
-    tun_device->set_up();
+    const auto set_up_result = tun_device->set_up();
+    if (!set_up_result) {
+        std::cerr << set_up_result.error().to_string() << std::endl;
+        return EXIT_FAILURE;
+    }
 
     auto session =
         zportal::Session::create_session(std::move(*ring), std::move(*tun_device), std::move(socket), 4096, 4096, 4096);
