@@ -13,6 +13,17 @@
 
 namespace zportal {
 
+struct TunDeviceStats {
+    std::uint64_t rx_packets;
+    std::uint64_t tx_packets;
+    std::uint64_t rx_bytes;
+    std::uint64_t tx_bytes;
+    std::uint64_t rx_dropped;
+    std::uint64_t tx_dropped;
+    std::uint64_t rx_errors;
+    std::uint64_t tx_errors;
+};
+
 class TunDevice {
   public:
     static Result<TunDevice> create_tun_device(const std::string& name, const Cidr& address,
@@ -29,6 +40,8 @@ class TunDevice {
 
     Result<void> set_up() noexcept;
     Result<void> set_down() noexcept;
+
+    Result<TunDeviceStats> get_stats() noexcept;
 
     int get_fd() const noexcept;
     const std::string& get_name() const noexcept;

@@ -300,3 +300,87 @@ zportal::Result<void> zportal::TunDevice::nl_send_acked_(const nlmsghdr& nlh) no
         }
     }
 }
+
+zportal::Result<zportal::TunDeviceStats> zportal::TunDevice::get_stats() noexcept {
+    struct {
+        nlmsghdr nlh;
+        ifinfomsg ifi;
+    } req{};
+
+    req.nlh.nlmsg_len = NLMSG_LENGTH(sizeof(ifinfomsg));
+    req.nlh.nlmsg_type = RTM_GETLINK;
+    req.nlh.nlmsg_flags = NLM_F_REQUEST | NLM_F_ACK;
+    req.nlh.nlmsg_seq = nl_next_seq_();
+
+    req.ifi.ifi_family = AF_UNSPEC;
+    req.ifi.ifi_index = index_;
+
+    auto result = nl_send_raw_(req.nlh);
+
+    alignas(nlmsghdr) char rxbuf[8192];
+    for (;;) {
+        ssize_t n = ::recv(nl_.get(), rxbuf, sizeof(rxbuf), 0);
+        if (n < 0) {
+            if (errno == EINTR)
+                continue;
+
+            return fail({ErrorCode::RecvFailed, errno});
+        }
+
+        for (nlmsghdr* nh = reinterpret_cast<nlmsghdr*>(rxbuf); NLMSG_OK(nh, static_cast<unsigned>(n));
+             nh = NLMSG_NEXT(nh, n)) {
+
+            if (nh->nlmsg_seq != req.nlh.nlmsg_seq)
+                continue;
+
+            if (nh->nlmsg_type == NLMSG_ERROR) {
+                auto* err = reinterpret_cast<nlmsgerr*>(NLMSG_DATA(nh));
+                if (err->error == 0)
+                    continue;
+
+                return fail({ErrorCode::NetlinkError, -err->error});
+            }
+
+            if (nh->nlmsg_type != RTM_NEWLINK)
+                continue;
+
+            auto* ifi = reinterpret_cast<ifinfomsg*>(NLMSG_DATA(nh));
+            if (ifi->ifi_index != index_)
+                continue;
+
+            TunDeviceStats out{};
+
+            int attr_len = nh->nlmsg_len - NLMSG_LENGTH(sizeof(*ifi));
+            for (rtattr* rta = IFLA_RTA(ifi); RTA_OK(rta, attr_len); rta = RTA_NEXT(rta, attr_len)) {
+                if (rta->rta_type == IFLA_STATS64 && RTA_PAYLOAD(rta) >= sizeof(rtnl_link_stats64)) {
+                    auto* s = reinterpret_cast<rtnl_link_stats64*>(RTA_DATA(rta));
+                    out.rx_packets = s->rx_packets;
+                    out.tx_packets = s->tx_packets;
+                    out.rx_bytes = s->rx_bytes;
+                    out.tx_bytes = s->tx_bytes;
+                    out.rx_dropped = s->rx_dropped;
+                    out.tx_dropped = s->tx_dropped;
+                    out.rx_errors = s->rx_errors;
+                    out.tx_errors = s->tx_errors;
+
+                    return out;
+                }
+                if (rta->rta_type == IFLA_STATS && RTA_PAYLOAD(rta) >= sizeof(rtnl_link_stats)) {
+                    auto* s = reinterpret_cast<rtnl_link_stats*>(RTA_DATA(rta));
+                    out.rx_packets = s->rx_packets;
+                    out.tx_packets = s->tx_packets;
+                    out.rx_bytes = s->rx_bytes;
+                    out.tx_bytes = s->tx_bytes;
+                    out.rx_dropped = s->rx_dropped;
+                    out.tx_dropped = s->tx_dropped;
+                    out.rx_errors = s->rx_errors;
+                    out.tx_errors = s->tx_errors;
+
+                    return out;
+                }
+            }
+
+            return fail({ErrorCode::NetlinkError, 0, "no IFLA_STATS64 / IFLA_STATS in RTM_GETLINK reply"});
+        }
+    }
+}
