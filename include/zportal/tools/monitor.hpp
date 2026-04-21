@@ -6,7 +6,6 @@
 #include <zportal/iouring/iouring.hpp>
 #include <zportal/net/tun.hpp>
 #include <zportal/tools/error.hpp>
-#include <zportal/net/tun.hpp>
 
 namespace zportal {
 
@@ -19,7 +18,7 @@ class Monitor {
 
     static void set_tun_device(const TunDevice& tun_device) noexcept;
 
-    private:
+  private:
     static const TunDevice* tun_device_;
 };
 

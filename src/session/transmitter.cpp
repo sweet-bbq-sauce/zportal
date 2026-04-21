@@ -1,4 +1,3 @@
-#include <iostream>
 #include <new>
 #include <utility>
 
@@ -125,7 +124,6 @@ zportal::Result<void> zportal::Transmitter::handle_read_cqe_(const Cqe& cqe) noe
     if (!cqe.ok()) {
         if (cqe.error() == ENOBUFS && !cqe.more()) {
             cooling_down_ = true;
-            std::cout << "TX backpressure: HIGH watermark, stopping READ" << std::endl;
             return kick_send_();
         }
 
@@ -136,7 +134,7 @@ zportal::Result<void> zportal::Transmitter::handle_read_cqe_(const Cqe& cqe) noe
     if (!bid)
         return fail(ErrorCode::ReadCqeMissingBid);
 
-    const std::uint32_t readen = static_cast<std::size_t>(cqe.result());
+    const std::uint32_t readen = static_cast<std::uint32_t>(cqe.result());
 
     OutFrame out_frame{.bid = *bid, .size = readen};
 
@@ -275,7 +273,6 @@ zportal::Result<void> zportal::Transmitter::handle_send_cqe_(const Cqe& cqe) noe
                 return fail(result.error());
 
             cooling_down_ = false;
-            std::cout << "TX backpressure: LOW watermark, rearming READ" << std::endl;
         }
     }
 

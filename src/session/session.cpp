@@ -97,9 +97,11 @@ zportal::Result<void> zportal::Session::run() noexcept {
         } else if (type == OperationType::RECV || type == OperationType::WRITE) {
             if (const auto handle_cqe_result = receiver_.handle_cqe(*cqe); !handle_cqe_result)
                 return fail(handle_cqe_result.error());
-        } else if (type == OperationType::TIMEOUT && cfg_->monitor_mode)
+        } else if (type == OperationType::TIMEOUT && cfg_->monitor_mode) {
             if (const auto handle_cqe_result = Monitor::handle_cqe(ring_, *cqe); !handle_cqe_result)
-                return fail(ErrorCode::InvalidEnumValue);
+                return fail(handle_cqe_result.error());
+        } else
+            return fail(ErrorCode::InvalidEnumValue);
     }
 
     return {};
