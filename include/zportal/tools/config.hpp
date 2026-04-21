@@ -26,6 +26,7 @@ struct Config {
     std::vector<zportal::Address> proxies;
 
     unsigned io_uring_entries{32};
+    bool monitor_mode{true};
 };
 
 std::exception_ptr parse_cli_arguments(zportal::Config& config, int argn, char* argv[], bool& end);

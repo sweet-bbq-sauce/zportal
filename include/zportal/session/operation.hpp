@@ -13,7 +13,7 @@ namespace zportal {
 
 */
 
-enum class OperationType : std::uint8_t { NONE, RECV, SEND, READ, WRITE, SIGNAL };
+enum class OperationType : std::uint8_t { NONE, RECV, SEND, READ, WRITE, SIGNAL, TIMEOUT };
 
 class Operation {
   public:

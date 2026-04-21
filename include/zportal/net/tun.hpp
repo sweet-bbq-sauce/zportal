@@ -41,7 +41,7 @@ class TunDevice {
     Result<void> set_up() noexcept;
     Result<void> set_down() noexcept;
 
-    Result<TunDeviceStats> get_stats() noexcept;
+    Result<TunDeviceStats> get_stats() const noexcept;
 
     int get_fd() const noexcept;
     const std::string& get_name() const noexcept;
@@ -65,8 +65,8 @@ class TunDevice {
     static std::uint32_t nl_next_seq_() noexcept;
     static Result<void> nl_add_attr_(nlmsghdr& nlh, std::size_t maxlen, std::uint16_t type, const void* data,
                                      std::size_t alen) noexcept;
-    Result<void> nl_send_raw_(const nlmsghdr& nlh) noexcept;
-    Result<void> nl_send_acked_(const nlmsghdr& nlh) noexcept;
+    Result<void> nl_send_raw_(const nlmsghdr& nlh) const noexcept;
+    Result<void> nl_send_acked_(const nlmsghdr& nlh) const noexcept;
 };
 
 } // namespace zportal

@@ -252,7 +252,7 @@ zportal::Result<void> zportal::TunDevice::nl_add_attr_(nlmsghdr& nlh, std::size_
     return {};
 }
 
-zportal::Result<void> zportal::TunDevice::nl_send_raw_(const nlmsghdr& nlh) noexcept {
+zportal::Result<void> zportal::TunDevice::nl_send_raw_(const nlmsghdr& nlh) const noexcept {
     sockaddr_nl peer{};
     peer.nl_family = AF_NETLINK;
 
@@ -270,7 +270,7 @@ zportal::Result<void> zportal::TunDevice::nl_send_raw_(const nlmsghdr& nlh) noex
     return {};
 }
 
-zportal::Result<void> zportal::TunDevice::nl_send_acked_(const nlmsghdr& nlh) noexcept {
+zportal::Result<void> zportal::TunDevice::nl_send_acked_(const nlmsghdr& nlh) const noexcept {
     const auto result = nl_send_raw_(nlh);
     if (!result)
         return fail(result.error());
@@ -301,7 +301,7 @@ zportal::Result<void> zportal::TunDevice::nl_send_acked_(const nlmsghdr& nlh) no
     }
 }
 
-zportal::Result<zportal::TunDeviceStats> zportal::TunDevice::get_stats() noexcept {
+zportal::Result<zportal::TunDeviceStats> zportal::TunDevice::get_stats() const noexcept {
     struct {
         nlmsghdr nlh;
         ifinfomsg ifi;

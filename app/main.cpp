@@ -80,8 +80,8 @@ int main(int argn, char* argv[]) {
         return EXIT_FAILURE;
     }
 
-    auto session =
-        zportal::Session::create_session(std::move(*ring), std::move(*tun_device), std::move(socket), 4096, 4096, 4096);
+    auto session = zportal::Session::create_session(std::move(*ring), std::move(*tun_device), std::move(socket), 4096,
+                                                    4096, 4096, cfg);
     if (!session) {
         std::cerr << session.error().to_string() << std::endl;
         return EXIT_FAILURE;
