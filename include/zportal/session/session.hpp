@@ -13,9 +13,9 @@ namespace zportal {
 class Session {
   public:
     Session() noexcept = default;
-    static Result<Session> create_session(IoUring&& ring, TunDevice&& tun, Socket&& socket, std::size_t tx_queue_length,
-                                          std::size_t rx_queue_length, std::size_t rx_buffer_size,
-                                          const Config& cfg) noexcept;
+    static Result<Session> create_session(IoUring&& ring, TunDevice&& tun, Socket&& socket,
+                                          std::uint16_t tx_queue_length, std::uint16_t rx_queue_length,
+                                          std::uint32_t rx_buffer_size, const Config& cfg) noexcept;
 
     Session(Session&&) noexcept;
     Session& operator=(Session&&) noexcept;

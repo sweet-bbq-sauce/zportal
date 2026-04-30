@@ -16,27 +16,25 @@
 #include <zportal/tools/support_check.hpp>
 
 zportal::Result<zportal::Receiver> zportal::Receiver::create_receiver(IoUring& ring, TunDevice& tun, Socket& socket,
-                                                                      std::size_t queue_length,
-                                                                      std::size_t buffer_size) noexcept {
+                                                                      std::uint16_t queue_length,
+                                                                      std::uint32_t buffer_size) noexcept {
     Receiver receiver;
     receiver.ring_ = &ring;
     receiver.tun_ = &tun;
     receiver.socket_ = &socket;
 
-    if (buffer_size > std::numeric_limits<std::uint32_t>::max())
-        return fail(ErrorCode::InvalidArgument);
-
-    auto bg = receiver.ring_->create_buffer_group(queue_length, static_cast<std::uint32_t>(buffer_size));
-    if (!bg)
-        return fail(bg.error());
-    receiver.bg_ = *bg;
-
     try {
         receiver.buffer_refcounts_.resize(queue_length, 0);
     } catch (const std::bad_alloc&) {
-        // TODO: delete buffer group
         return fail(ErrorCode::NotEnoughMemory);
     }
+
+    auto bg = receiver.ring_->create_buffer_group(queue_length, buffer_size);
+    if (!bg) {
+        receiver.buffer_refcounts_.clear();
+        return fail(bg.error());
+    }
+    receiver.bg_ = *bg;
 
     return receiver;
 }

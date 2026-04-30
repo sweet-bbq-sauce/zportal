@@ -23,8 +23,8 @@ class Session;
 class Receiver {
   public:
     Receiver() noexcept = default;
-    static Result<Receiver> create_receiver(IoUring& ring, TunDevice& tun, Socket& socket, std::size_t queue_length,
-                                            std::size_t buffer_size) noexcept;
+    static Result<Receiver> create_receiver(IoUring& ring, TunDevice& tun, Socket& socket, std::uint16_t queue_length,
+                                            std::uint32_t buffer_size) noexcept;
 
     Receiver(Receiver&&) noexcept;
     Receiver& operator=(Receiver&&) noexcept;

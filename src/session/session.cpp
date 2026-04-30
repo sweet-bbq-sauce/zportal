@@ -10,9 +10,11 @@
 #include <zportal/tools/error.hpp>
 #include <zportal/tools/monitor.hpp>
 
-zportal::Result<zportal::Session>
-zportal::Session::create_session(IoUring&& ring, TunDevice&& tun, Socket&& socket, std::size_t tx_queue_length,
-                                 std::size_t rx_queue_length, std::size_t rx_buffer_size, const Config& cfg) noexcept {
+zportal::Result<zportal::Session> zportal::Session::create_session(IoUring&& ring, TunDevice&& tun, Socket&& socket,
+                                                                   std::uint16_t tx_queue_length,
+                                                                   std::uint16_t rx_queue_length,
+                                                                   std::uint32_t rx_buffer_size,
+                                                                   const Config& cfg) noexcept {
     Session session;
     session.ring_ = std::move(ring);
     session.tun_ = std::move(tun);
