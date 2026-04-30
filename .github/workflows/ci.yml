@@ -19,7 +19,7 @@ jobs:
     - name: Toolchain
       run: |
         sudo apt-get update
-        sudo apt-get install -y clang-format clang-tidy liburing-dev
+        sudo apt-get install -y clang-format-19 clang-tidy-19 liburing-dev
 
     - name: Check formatting
       run: >
@@ -30,7 +30,7 @@ jobs:
         'app/**/*.cpp'
         'tests/**/*.cpp'
         |
-        xargs -r clang-format --dry-run --Werror
+        xargs -r clang-format-19 --dry-run --Werror
 
     - name: Configure CMake with clang-tidy
       run: >
@@ -38,7 +38,7 @@ jobs:
         -B ${{github.workspace}}/build-tidy
         -DCMAKE_BUILD_TYPE=Debug
         -DBUILD_TESTS=OFF
-        -DCMAKE_CXX_CLANG_TIDY='clang-tidy;--warnings-as-errors=*'
+        -DCMAKE_CXX_CLANG_TIDY='clang-tidy-19;--warnings-as-errors=clang-analyzer-*'
 
     - name: Run clang-tidy
       run: cmake --build ${{github.workspace}}/build-tidy
