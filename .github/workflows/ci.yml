@@ -38,7 +38,7 @@ jobs:
         -B ${{github.workspace}}/build-tidy
         -DCMAKE_BUILD_TYPE=Debug
         -DBUILD_TESTS=OFF
-        -DCMAKE_CXX_CLANG_TIDY='clang-tidy-19;--warnings-as-errors=clang-analyzer-*'
+        -DCMAKE_CXX_CLANG_TIDY='clang-tidy-19;--checks=-*,clang-analyzer-*;--warnings-as-errors=*'
 
     - name: Run clang-tidy
       run: cmake --build ${{github.workspace}}/build-tidy
