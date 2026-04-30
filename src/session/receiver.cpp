@@ -1,4 +1,3 @@
-#include <limits>
 #include <new>
 #include <utility>
 
@@ -22,6 +21,9 @@ zportal::Result<zportal::Receiver> zportal::Receiver::create_receiver(IoUring& r
     receiver.ring_ = &ring;
     receiver.tun_ = &tun;
     receiver.socket_ = &socket;
+
+    if (queue_length == 0 || buffer_size == 0)
+        return fail(ErrorCode::InvalidArgument);
 
     try {
         receiver.buffer_refcounts_.resize(queue_length, 0);

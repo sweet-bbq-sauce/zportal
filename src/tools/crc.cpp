@@ -35,13 +35,11 @@ __attribute__((target("sse4.2"))) static inline void crc32c_hardware(std::uint32
     // std::uint32_t crc = 0xFFFFFFFFu;
 
     #if defined(__x86_64__)
-    std::uint64_t c64 = crc;
-
     while (size && (reinterpret_cast<std::uintptr_t>(ptr) & 7u)) {
         crc = _mm_crc32_u8(crc, *ptr++);
         --size;
     }
-    c64 = crc;
+    std::uint64_t c64 = crc;
 
     while (size >= 8) {
         std::uint64_t v;

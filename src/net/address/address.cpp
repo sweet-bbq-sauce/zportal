@@ -302,7 +302,7 @@ zportal::SockAddress zportal::SockAddress::unix_path(const std::string& path) {
     auto* unix = reinterpret_cast<sockaddr_un*>(&buffer.ss_);
     unix->sun_family = AF_UNIX;
     buffer.len_ = static_cast<socklen_t>(offsetof(sockaddr_un, sun_path) + path.size() + 1);
-    std::strcpy(unix->sun_path, path.c_str());
+    std::memcpy(unix->sun_path, path.c_str(), path.size() + 1);
 
     return buffer;
 }

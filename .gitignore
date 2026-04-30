@@ -1,6 +1,5 @@
 build/
-build_rpi/
-build_rpi2/
+build-*/
 .cache/
 .vscode/
 .codex

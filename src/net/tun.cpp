@@ -315,7 +315,9 @@ zportal::Result<zportal::TunDeviceStats> zportal::TunDevice::get_stats() const n
     req.ifi.ifi_family = AF_UNSPEC;
     req.ifi.ifi_index = index_;
 
-    auto result = nl_send_raw_(req.nlh);
+    const auto result = nl_send_raw_(req.nlh);
+    if (!result)
+        return fail(result.error());
 
     alignas(nlmsghdr) char rxbuf[8192];
     for (;;) {

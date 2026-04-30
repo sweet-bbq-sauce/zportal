@@ -20,7 +20,7 @@ class IoUring {
     IoUring(IoUring&&) noexcept;
     IoUring& operator=(IoUring&&) noexcept;
     IoUring(const IoUring&) = delete;
-    IoUring& operator=(const IoUring&) = delete; 
+    IoUring& operator=(const IoUring&) = delete;
 
     ~IoUring() noexcept;
     void close() noexcept;

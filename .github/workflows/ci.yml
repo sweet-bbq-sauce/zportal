@@ -10,6 +10,39 @@ env:
   BUILD_TYPE: Release
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Toolchain
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y clang-format clang-tidy liburing-dev
+
+    - name: Check formatting
+      run: >
+        git ls-files
+        'include/**/*.hpp'
+        'include/**/*.inl'
+        'src/**/*.cpp'
+        'app/**/*.cpp'
+        'tests/**/*.cpp'
+        |
+        xargs -r clang-format --dry-run --Werror
+
+    - name: Configure CMake with clang-tidy
+      run: >
+        cmake
+        -B ${{github.workspace}}/build-tidy
+        -DCMAKE_BUILD_TYPE=Debug
+        -DBUILD_TESTS=OFF
+        -DCMAKE_CXX_CLANG_TIDY='clang-tidy;--warnings-as-errors=*'
+
+    - name: Run clang-tidy
+      run: cmake --build ${{github.workspace}}/build-tidy
+
   build:
     runs-on: ubuntu-latest
     strategy:

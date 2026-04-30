@@ -14,7 +14,6 @@ class IoUring;
 
 class Cqe {
   public:
-    
     std::int32_t result() const noexcept;
     std::uint32_t flags() const noexcept;
     Operation operation() const noexcept;
