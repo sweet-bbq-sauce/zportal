@@ -46,7 +46,7 @@ class Cidr {
     explicit Cidr(SockAddress address, std::uint8_t prefix);
 
     const SockAddress& get_address() const noexcept;
-    const std::uint8_t get_prefix() const noexcept;
+    std::uint8_t get_prefix() const noexcept;
 
     bool is_ip4() const noexcept;
     bool is_ip6() const noexcept;
@@ -54,13 +54,13 @@ class Cidr {
     bool is_valid() const noexcept;
     explicit operator bool() const noexcept;
 
-    Cidr get_network() const noexcept;
+    Cidr get_network() const;
     bool is_in_network(const SockAddress& address) const noexcept;
 
     std::string str() const;
 
   private:
-    SockAddress address_{};
+    SockAddress address_;
     std::uint8_t prefix_{};
 };
 

@@ -23,13 +23,15 @@ zportal::Result<zportal::Session> zportal::Session::create_session(IoUring&& rin
 
     auto receiver =
         Receiver::create_receiver(session.ring_, session.tun_, session.socket_, rx_queue_length, rx_buffer_size);
-    if (!receiver)
+    if (!receiver) {
         return fail(receiver.error());
+    }
     session.receiver_ = std::move(*receiver);
 
     auto transmitter = Transmitter::create_transmitter(session.ring_, session.tun_, session.socket_, tx_queue_length);
-    if (!transmitter)
+    if (!transmitter) {
         return fail(transmitter.error());
+    }
     session.transmitter_ = std::move(*transmitter);
 
     return session;
@@ -48,8 +50,9 @@ zportal::Session::Session(Session&& other) noexcept
 }
 
 zportal::Session& zportal::Session::operator=(Session&& other) noexcept {
-    if (&other == this)
+    if (&other == this) {
         return *this;
+    }
 
     ring_ = std::move(other.ring_);
     tun_ = std::move(other.tun_);
@@ -69,41 +72,51 @@ zportal::Session& zportal::Session::operator=(Session&& other) noexcept {
 }
 
 zportal::Result<void> zportal::Session::run() noexcept {
-    if (const auto arm_recv_result = receiver_.arm_recv(); !arm_recv_result)
+    if (const auto arm_recv_result = receiver_.arm_recv(); !arm_recv_result) {
         return fail(arm_recv_result.error());
+    }
 
-    if (const auto arm_read_result = transmitter_.arm_read(); !arm_read_result)
+    if (const auto arm_read_result = transmitter_.arm_read(); !arm_read_result) {
         return fail(arm_read_result.error());
+    }
 
     Monitor::set_tun_device(tun_);
-    if (const auto first_print_result = Monitor::print(); !first_print_result)
+    if (const auto first_print_result = Monitor::print(); !first_print_result) {
         return fail(first_print_result.error());
+    }
 
     if (cfg_->monitor_mode) {
         if (const auto arm_timeout_result = Monitor::arm_timeout(ring_, std::chrono::milliseconds(1000));
-            !arm_timeout_result)
+            !arm_timeout_result) {
             return fail(arm_timeout_result.error());
+        }
     }
 
     for (;;) {
         const auto cqe = ring_.wait();
-        if (!cqe)
+        if (!cqe) {
             return fail(cqe.error());
+        }
 
         const auto type = cqe->operation().get_type();
-        if (type == OperationType::NONE)
+        if (type == OperationType::NONE) {
             continue;
-        else if (type == OperationType::READ || type == OperationType::SEND) {
-            if (const auto handle_cqe_result = transmitter_.handle_cqe(*cqe); !handle_cqe_result)
+        }
+        if (type == OperationType::READ || type == OperationType::SEND) {
+            if (const auto handle_cqe_result = transmitter_.handle_cqe(*cqe); !handle_cqe_result) {
                 return fail(handle_cqe_result.error());
+            }
         } else if (type == OperationType::RECV || type == OperationType::WRITE) {
-            if (const auto handle_cqe_result = receiver_.handle_cqe(*cqe); !handle_cqe_result)
+            if (const auto handle_cqe_result = receiver_.handle_cqe(*cqe); !handle_cqe_result) {
                 return fail(handle_cqe_result.error());
+            }
         } else if (type == OperationType::TIMEOUT && cfg_->monitor_mode) {
-            if (const auto handle_cqe_result = Monitor::handle_cqe(ring_, *cqe); !handle_cqe_result)
+            if (const auto handle_cqe_result = Monitor::handle_cqe(ring_, *cqe); !handle_cqe_result) {
                 return fail(handle_cqe_result.error());
-        } else
+            }
+        } else {
             return fail(ErrorCode::InvalidEnumValue);
+        }
     }
 
     return {};

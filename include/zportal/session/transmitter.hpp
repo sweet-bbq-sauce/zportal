@@ -28,8 +28,8 @@ class Transmitter {
     static Result<Transmitter> create_transmitter(IoUring& ring, TunDevice& tun, Socket& sock,
                                                   std::uint16_t queue_length) noexcept;
 
-    Transmitter(Transmitter&&) noexcept;
-    Transmitter& operator=(Transmitter&&) noexcept;
+    Transmitter(Transmitter&& /*other*/) noexcept;
+    Transmitter& operator=(Transmitter&& /*other*/) noexcept;
     Transmitter(const Transmitter&) = delete;
     Transmitter& operator=(const Transmitter&) = delete;
 
@@ -56,14 +56,14 @@ class Transmitter {
 
     struct CurrentFrameState {
         OutFrame frame;
-        FrameHeader header{};
+        FrameHeader header;
 
         std::size_t bytes_sent{};
         std::vector<iovec> segments;
         msghdr message_header{};
     };
     bool send_in_progress_{false};
-    std::optional<CurrentFrameState> current_frame_state_{};
+    std::optional<CurrentFrameState> current_frame_state_;
 
     Result<void> handle_read_cqe_(const Cqe& cqe) noexcept;
     Result<void> handle_send_cqe_(const Cqe& cqe) noexcept;

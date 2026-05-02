@@ -19,7 +19,8 @@ TEST(FileDescriptor, Constructor) {
 }
 
 TEST(FileDescriptor, Swap) {
-    FileDescriptor fd1(1), fd2(2);
+    FileDescriptor fd1(1);
+    FileDescriptor fd2(2);
 
     swap(fd1, fd2);
 
@@ -56,7 +57,8 @@ TEST(FileDescriptor, MoveConstructor) {
 }
 
 TEST(FileDescriptor, MoveOperator) {
-    FileDescriptor fd1(3), fd2(5);
+    FileDescriptor fd1(3);
+    FileDescriptor fd2(5);
 
     fd2 = std::move(fd1);
 

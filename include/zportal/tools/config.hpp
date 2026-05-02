@@ -19,8 +19,8 @@ struct Config {
     std::uint16_t mtu{};
 
     // Mode
-    std::optional<zportal::Address> bind_address{};
-    std::optional<zportal::Address> connect_address{};
+    std::optional<zportal::Address> bind_address;
+    std::optional<zportal::Address> connect_address;
 
     // Client config
     std::vector<zportal::Address> proxies;

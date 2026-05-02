@@ -8,12 +8,14 @@
 #include <zportal/tools/error.hpp>
 
 zportal::Result<zportal::SockAddress> zportal::resolve(const Address& address) noexcept {
-    if (std::holds_alternative<SockAddress>(address))
+    if (std::holds_alternative<SockAddress>(address)) {
         return std::get<SockAddress>(address);
+    }
 
     const auto& hostpair = std::get<HostPair>(address);
 
-    addrinfo request{}, *result = nullptr;
+    addrinfo request{};
+    addrinfo* result = nullptr;
     request.ai_family = AF_UNSPEC;
     request.ai_socktype = SOCK_STREAM;
 

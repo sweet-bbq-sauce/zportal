@@ -22,8 +22,9 @@ zportal::Result<zportal::Receiver> zportal::Receiver::create_receiver(IoUring& r
     receiver.tun_ = &tun;
     receiver.socket_ = &socket;
 
-    if (queue_length == 0 || buffer_size == 0)
+    if (queue_length == 0 || buffer_size == 0) {
         return fail(ErrorCode::InvalidArgument);
+    }
 
     try {
         receiver.buffer_refcounts_.resize(queue_length, 0);
@@ -53,8 +54,9 @@ zportal::Receiver::Receiver(Receiver&& other) noexcept
       write_in_progress_(std::exchange(other.write_in_progress_, false)) {}
 
 zportal::Receiver& zportal::Receiver::operator=(Receiver&& other) noexcept {
-    if (&other == this)
+    if (&other == this) {
         return *this;
+    }
 
     ring_ = std::exchange(other.ring_, nullptr);
     tun_ = std::exchange(other.tun_, nullptr);
@@ -76,12 +78,14 @@ zportal::Receiver& zportal::Receiver::operator=(Receiver&& other) noexcept {
 }
 
 zportal::Result<void> zportal::Receiver::arm_recv() noexcept {
-    if (!is_valid())
+    if (!is_valid()) {
         return fail(ErrorCode::InvalidReceiver);
+    }
 
     auto sqe = ring_->get_sqe();
-    if (!sqe)
+    if (!sqe) {
         return fail(sqe.error());
+    }
 
     Operation operation;
     operation.set_type(OperationType::RECV);
@@ -89,13 +93,15 @@ zportal::Result<void> zportal::Receiver::arm_recv() noexcept {
 
 #if HAVE_IO_URING_PREP_RECV_MULTISHOT
     const auto check_result = support_check::recv_multishot();
-    if (!check_result)
+    if (!check_result) {
         return fail(check_result.error());
+    }
 
-    if (*check_result)
+    if (*check_result) {
         ::io_uring_prep_recv_multishot(*sqe, socket_->get(), nullptr, 0, 0);
-    else
+    } else {
         ::io_uring_prep_recv(*sqe, socket_->get(), nullptr, 0, 0);
+    }
 #else
     ::io_uring_prep_recv(*sqe, socket_->get(), nullptr, 0, 0);
 #endif
@@ -104,28 +110,31 @@ zportal::Result<void> zportal::Receiver::arm_recv() noexcept {
     (*sqe)->buf_group = bg_->get_bgid();
 
     const auto submit_result = ring_->submit();
-    if (!submit_result)
+    if (!submit_result) {
         return fail(submit_result.error());
+    }
 
     return {};
 }
 
 zportal::Result<void> zportal::Receiver::handle_cqe(const Cqe& cqe) noexcept {
-    if (!is_valid())
+    if (!is_valid()) {
         return fail(ErrorCode::InvalidReceiver);
+    }
 
     const auto type = cqe.operation().get_type();
-    if (type != OperationType::RECV && type != OperationType::WRITE)
+    if (type != OperationType::RECV && type != OperationType::WRITE) {
         return fail(ErrorCode::WrongOperationType);
+    }
 
-    if (type == OperationType::RECV)
+    if (type == OperationType::RECV) {
         return handle_recv_cqe_(cqe);
-    else
-        return handle_write_cqe_(cqe);
+    }
+    return handle_write_cqe_(cqe);
 }
 
 bool zportal::Receiver::is_valid() const noexcept {
-    return ring_ && tun_ && socket_ && bg_;
+    return (ring_ != nullptr) && (tun_ != nullptr) && (socket_ != nullptr) && (bg_ != nullptr);
 }
 
 zportal::Receiver::operator bool() const noexcept {
@@ -133,40 +142,47 @@ zportal::Receiver::operator bool() const noexcept {
 }
 
 zportal::Result<void> zportal::Receiver::handle_write_cqe_(const Cqe& cqe) noexcept {
-    if (!is_valid())
+    if (!is_valid()) {
         return fail(ErrorCode::InvalidReceiver);
+    }
 
-    if (cqe.operation().get_type() != OperationType::WRITE)
+    if (cqe.operation().get_type() != OperationType::WRITE) {
         return fail(ErrorCode::WrongOperationType);
+    }
 
     write_in_progress_ = false;
 
-    if (output_frame_queue_.empty())
+    if (output_frame_queue_.empty()) {
         return fail(ErrorCode::WriteUnknownFrame);
+    }
 
-    if (!cqe.ok())
+    if (!cqe.ok()) {
         return fail({ErrorCode::TunWriteFailed, cqe.error()});
+    }
 
     const auto& frame = output_frame_queue_.front();
     const std::size_t frame_size = ([&]() {
         std::size_t size{};
-        for (const auto& segment : frame.segments)
+        for (const auto& segment : frame.segments) {
             size += static_cast<std::size_t>(segment.iov_len);
+        }
 
         return size;
     })();
 
-    const std::size_t written = static_cast<std::size_t>(cqe.result());
-    if (written != frame_size)
+    const auto written = static_cast<std::size_t>(cqe.result());
+    if (written != frame_size) {
         return fail(ErrorCode::TunPartialWrite);
+    }
 
     for (std::uint16_t bid : frame.bid) {
         buffer_refcounts_[bid]--;
         if (buffer_refcounts_[bid] <= 0) {
             assert(buffer_refcounts_[bid] == 0);
 
-            if (const auto result = bg_->return_buffer(bid); !result)
+            if (const auto result = bg_->return_buffer(bid); !result) {
                 return fail(result.error());
+            }
 
             used_buffers_--;
         }
@@ -175,8 +191,9 @@ zportal::Result<void> zportal::Receiver::handle_write_cqe_(const Cqe& cqe) noexc
     output_frame_queue_.pop();
 
     if (cooling_down_ && (used_buffers_ < bg_->get_buffer_count() / 2)) {
-        if (const auto arm_recv_result = arm_recv(); !arm_recv_result)
+        if (const auto arm_recv_result = arm_recv(); !arm_recv_result) {
             return fail(arm_recv_result.error());
+        }
 
         cooling_down_ = false;
     }
@@ -185,11 +202,13 @@ zportal::Result<void> zportal::Receiver::handle_write_cqe_(const Cqe& cqe) noexc
 }
 
 zportal::Result<void> zportal::Receiver::handle_recv_cqe_(const Cqe& cqe) noexcept {
-    if (!is_valid())
+    if (!is_valid()) {
         return fail(ErrorCode::InvalidReceiver);
+    }
 
-    if (cqe.operation().get_type() != OperationType::RECV)
+    if (cqe.operation().get_type() != OperationType::RECV) {
         return fail(ErrorCode::WrongOperationType);
+    }
 
     if (!cqe.ok()) {
         if (cqe.error() == ENOBUFS && !cqe.more()) {
@@ -202,12 +221,14 @@ zportal::Result<void> zportal::Receiver::handle_recv_cqe_(const Cqe& cqe) noexce
     used_buffers_++;
 
     const std::uint32_t readen = cqe.result();
-    if (readen == 0)
+    if (readen == 0) {
         return fail(ErrorCode::PeerClosed);
+    }
 
     const auto bid = cqe.bid();
-    if (!bid)
+    if (!bid) {
         return fail(ErrorCode::RecvCqeMissingBid);
+    }
 
     try {
         input_buffer_queue_.push({.bid = *bid, .size = static_cast<std::size_t>(readen)});
@@ -215,34 +236,40 @@ zportal::Result<void> zportal::Receiver::handle_recv_cqe_(const Cqe& cqe) noexce
         return fail(ErrorCode::NotEnoughMemory);
     }
 
-    if (const auto kick_parse_result = kick_parse_(); !kick_parse_result)
+    if (const auto kick_parse_result = kick_parse_(); !kick_parse_result) {
         return fail(kick_parse_result.error());
+    }
 
     if (!cqe.more() && !cooling_down_) {
-        if (const auto arm_recv_result = arm_recv(); !arm_recv_result)
+        if (const auto arm_recv_result = arm_recv(); !arm_recv_result) {
             return fail(arm_recv_result.error());
+        }
     }
 
     return kick_write_();
 }
 
 zportal::Result<void> zportal::Receiver::kick_parse_() noexcept {
-    if (!is_valid())
+    if (!is_valid()) {
         return fail(ErrorCode::InvalidReceiver);
+    }
 
     while (!input_buffer_queue_.empty()) {
         InputBuffer& input_buffer = input_buffer_queue_.front();
 
-        if (input_buffer.offset >= input_buffer.size)
+        if (input_buffer.offset >= input_buffer.size) {
             return fail(ErrorCode::InvalidState);
+        }
 
         if (state_ == ParseState::PARSING_HEADER) {
-            if (header_progress_ >= FrameHeader::wire_size)
+            if (header_progress_ >= FrameHeader::wire_size) {
                 return fail(ErrorCode::InvalidState);
+            }
 
             auto buffer_span = bg_->get_buffer(input_buffer.bid, static_cast<std::uint32_t>(input_buffer.size));
-            if (!buffer_span)
+            if (!buffer_span) {
                 return fail(buffer_span.error());
+            }
 
             const std::size_t take =
                 std::min(input_buffer.size - input_buffer.offset, FrameHeader::wire_size - header_progress_);
@@ -254,23 +281,27 @@ zportal::Result<void> zportal::Receiver::kick_parse_() noexcept {
             if (header_progress_ == FrameHeader::wire_size) {
                 header_progress_ = 0;
 
-                if (!header_.is_magic_valid())
+                if (!header_.is_magic_valid()) {
                     return fail(ErrorCode::InvalidMagic);
+                }
 
-                if (header_.get_size() == 0 || header_.get_size() > tun_->get_mtu())
+                if (header_.get_size() == 0 || header_.get_size() > tun_->get_mtu()) {
                     return fail(ErrorCode::InvalidSize);
+                }
 
                 state_ = ParseState::PARSING_PAYLOAD;
             }
 
         } else if (state_ == ParseState::PARSING_PAYLOAD) {
-            const std::size_t payload_size = static_cast<std::size_t>(header_.get_size());
-            if (payload_progress_ >= payload_size)
+            const auto payload_size = static_cast<std::size_t>(header_.get_size());
+            if (payload_progress_ >= payload_size) {
                 return fail(ErrorCode::InvalidState);
+            }
 
             auto buffer_span = bg_->get_buffer(input_buffer.bid, static_cast<std::uint32_t>(input_buffer.size));
-            if (!buffer_span)
+            if (!buffer_span) {
                 return fail(buffer_span.error());
+            }
 
             const std::size_t take =
                 std::min(input_buffer.size - input_buffer.offset, payload_size - payload_progress_);
@@ -290,8 +321,9 @@ zportal::Result<void> zportal::Receiver::kick_parse_() noexcept {
             if (payload_progress_ == payload_size) {
                 payload_progress_ = 0;
 
-                if (header_.get_crc() != crc32c(frame_.segments))
+                if (header_.get_crc() != crc32c(frame_.segments)) {
                     return fail(ErrorCode::FrameCrcMismatch);
+                }
 
                 try {
                     output_frame_queue_.push(frame_);
@@ -302,13 +334,15 @@ zportal::Result<void> zportal::Receiver::kick_parse_() noexcept {
                 frame_ = OutputFrame{};
                 state_ = ParseState::PARSING_HEADER;
             }
-        } else
+        } else {
             return fail(ErrorCode::InvalidEnumValue);
+        }
 
         if (input_buffer.offset == input_buffer.size) {
             if (buffer_refcounts_[input_buffer.bid] == 0) {
-                if (const auto result = bg_->return_buffer(input_buffer.bid); !result)
+                if (const auto result = bg_->return_buffer(input_buffer.bid); !result) {
                     return fail(result.error());
+                }
 
                 used_buffers_--;
             }
@@ -321,20 +355,24 @@ zportal::Result<void> zportal::Receiver::kick_parse_() noexcept {
 }
 
 zportal::Result<void> zportal::Receiver::kick_write_() noexcept {
-    if (!is_valid())
+    if (!is_valid()) {
         return fail(ErrorCode::InvalidReceiver);
+    }
 
-    if (write_in_progress_)
+    if (write_in_progress_) {
         return {};
+    }
 
-    if (output_frame_queue_.empty())
+    if (output_frame_queue_.empty()) {
         return {};
+    }
 
     const auto& frame = output_frame_queue_.front();
 
     auto sqe = ring_->get_sqe();
-    if (!sqe)
+    if (!sqe) {
         return fail(sqe.error());
+    }
 
     Operation operation;
     operation.set_type(OperationType::WRITE);
@@ -343,8 +381,9 @@ zportal::Result<void> zportal::Receiver::kick_write_() noexcept {
                            static_cast<unsigned int>(frame.segments.size()), 0);
     ::io_uring_sqe_set_data64(*sqe, operation.serialize());
 
-    if (const auto submit_result = ring_->submit(); !submit_result)
+    if (const auto submit_result = ring_->submit(); !submit_result) {
         return fail(submit_result.error());
+    }
 
     write_in_progress_ = true;
 

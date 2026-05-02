@@ -11,7 +11,7 @@ using namespace zportal;
 TEST(Crc, FromString) {
     const std::string data = "zportal";
 
-    EXPECT_EQ(crc32c({reinterpret_cast<const std::byte*>(data.data()), data.size()}), 0xa9d08df5u);
+    EXPECT_EQ(crc32c({reinterpret_cast<const std::byte*>(data.data()), data.size()}), 0xa9d08df5U);
 }
 
 TEST(Crc, FromStringSegments) {
@@ -22,5 +22,5 @@ TEST(Crc, FromStringSegments) {
     EXPECT_EQ(crc32c({{reinterpret_cast<const std::byte*>(seg1.data()), seg1.size()},
                       {reinterpret_cast<const std::byte*>(seg2.data()), seg2.size()},
                       {reinterpret_cast<const std::byte*>(seg3.data()), seg3.size()}}),
-              0xa9d08df5u);
+              0xa9d08df5U);
 }

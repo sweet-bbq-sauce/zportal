@@ -17,8 +17,8 @@ class IoUring {
     IoUring() noexcept = default;
     static Result<IoUring> create_queue(unsigned entries) noexcept;
 
-    IoUring(IoUring&&) noexcept;
-    IoUring& operator=(IoUring&&) noexcept;
+    IoUring(IoUring&& /*other*/) noexcept;
+    IoUring& operator=(IoUring&& /*other*/) noexcept;
     IoUring(const IoUring&) = delete;
     IoUring& operator=(const IoUring&) = delete;
 

@@ -18,8 +18,9 @@
 
 zportal::Result<zportal::IoUring> zportal::IoUring::create_queue(unsigned entries) noexcept {
     IoUring ring;
-    if (const int result = ::io_uring_queue_init(entries, &ring.ring_, 0); result < 0)
+    if (const int result = ::io_uring_queue_init(entries, &ring.ring_, 0); result < 0) {
         return fail({ErrorCode::RingCreateQueueFailed, -result});
+    }
 
     return ring;
 }
@@ -28,8 +29,9 @@ zportal::IoUring::IoUring(IoUring&& other) noexcept
     : ring_(std::exchange(other.ring_, invalid_ring_)), buffer_groups_(std::move(other.buffer_groups_)),
       next_bgid_(std::exchange(other.next_bgid_, 0)) {}
 zportal::IoUring& zportal::IoUring::operator=(IoUring&& other) noexcept {
-    if (&other == this)
+    if (&other == this) {
         return *this;
+    }
 
     close();
     ring_ = std::exchange(other.ring_, invalid_ring_);
@@ -44,8 +46,9 @@ zportal::IoUring::~IoUring() noexcept {
 }
 
 void zportal::IoUring::close() noexcept {
-    if (!is_valid())
+    if (!is_valid()) {
         return;
+    }
 
     buffer_groups_.clear();
     next_bgid_ = 0;
@@ -55,34 +58,40 @@ void zportal::IoUring::close() noexcept {
 }
 
 zportal::Result<io_uring_sqe*> zportal::IoUring::get_sqe() noexcept {
-    if (!is_valid())
+    if (!is_valid()) {
         return fail(ErrorCode::RingInvalid);
+    }
 
     io_uring_sqe* sqe = ::io_uring_get_sqe(&ring_);
-    if (!sqe)
+    if (sqe == nullptr) {
         return fail(ErrorCode::NotEnoughSqe);
+    }
 
     return sqe;
 }
 
 zportal::Result<unsigned> zportal::IoUring::submit() noexcept {
-    if (!is_valid())
+    if (!is_valid()) {
         return fail(ErrorCode::RingInvalid);
+    }
 
     const int result = ::io_uring_submit(&ring_);
-    if (result < 0)
+    if (result < 0) {
         return fail({ErrorCode::RingSubmitFailed, -result});
+    }
 
     return static_cast<unsigned>(result);
 }
 
 zportal::Result<zportal::Cqe> zportal::IoUring::wait() noexcept {
-    if (!is_valid())
+    if (!is_valid()) {
         return fail(ErrorCode::RingInvalid);
+    }
 
     io_uring_cqe* cqe = nullptr;
-    if (const int result = ::io_uring_wait_cqe(&ring_, &cqe); result < 0)
+    if (const int result = ::io_uring_wait_cqe(&ring_, &cqe); result < 0) {
         return fail({ErrorCode::RingWaitFailed, -result});
+    }
 
     Cqe cqe_copy{*cqe};
     ::io_uring_cqe_seen(&ring_, cqe);
@@ -100,23 +109,27 @@ zportal::IoUring::operator bool() const noexcept {
 
 zportal::Result<zportal::BufferGroup*> zportal::IoUring::create_buffer_group(std::uint16_t length,
                                                                              std::uint32_t buf_size) noexcept {
-    if (!is_valid())
+    if (!is_valid()) {
         return fail(ErrorCode::RingInvalid);
+    }
 
-    if (length == 0 || buf_size == 0)
+    if (length == 0 || buf_size == 0) {
         return fail(ErrorCode::InvalidArgument);
+    }
 
     auto bg = std::unique_ptr<BufferGroup>(new (std::nothrow) BufferGroup(&ring_));
-    if (!bg)
+    if (!bg) {
         return fail(ErrorCode::NotEnoughMemory);
+    }
 
     bg->buffer_count_ = length;
     bg->buffer_size_ = buf_size;
     bg->size_ = static_cast<std::size_t>(bg->buffer_count_) * static_cast<std::size_t>(bg->buffer_size_);
     bg->data_ = std::unique_ptr<std::byte[]>(new (std::nothrow) std::byte[bg->size_]);
 
-    if (!bg->data_)
+    if (!bg->data_) {
         return fail(ErrorCode::NotEnoughMemory);
+    }
 
     bg->bgid_ = get_next_bgid_();
 
@@ -125,9 +138,17 @@ zportal::Result<zportal::BufferGroup*> zportal::IoUring::create_buffer_group(std
     bg->br_ =
         ::io_uring_setup_buf_ring(&ring_, static_cast<unsigned int>(bg->buffer_count_), bg->bgid_, 0, &setup_error);
 
-    if (!bg->br_)
-        return fail({ErrorCode::RingBufferRingSetupFailed,
-                     setup_error == 0 ? EIO : (setup_error > 0 ? setup_error : -setup_error)});
+    if (bg->br_ == nullptr) {
+        int error = setup_error;
+
+        if (error == 0) {
+            error = EIO;
+        } else if (error < 0) {
+            error = -error;
+        }
+
+        return fail({ErrorCode::RingBufferRingSetupFailed, error});
+    }
 #else
     const auto page_size = system::get_page_size();
     if (!page_size)
@@ -161,8 +182,9 @@ zportal::Result<zportal::BufferGroup*> zportal::IoUring::create_buffer_group(std
     bg->mask_ = ::io_uring_buf_ring_mask(static_cast<std::uint32_t>(bg->buffer_count_));
     for (std::uint16_t bid = 0; bid < bg->buffer_count_; bid++) {
         auto buffer = bg->get_buffer(bid);
-        if (!buffer)
+        if (!buffer) {
             return fail(buffer.error());
+        }
 
         ::io_uring_buf_ring_add(bg->br_, buffer->data(), buffer->size(), bid, bg->mask_, static_cast<int>(bid));
     }
@@ -173,12 +195,14 @@ zportal::Result<zportal::BufferGroup*> zportal::IoUring::create_buffer_group(std
 }
 
 zportal::Result<zportal::BufferGroup*> zportal::IoUring::get_buffer_group(std::uint16_t bgid) noexcept {
-    if (!is_valid())
+    if (!is_valid()) {
         return fail(ErrorCode::RingInvalid);
+    }
 
     for (auto& bg : buffer_groups_) {
-        if (bg->get_bgid() == bgid)
+        if (bg->get_bgid() == bgid) {
             return bg.get();
+        }
     }
 
     return fail(ErrorCode::InvalidBgid);

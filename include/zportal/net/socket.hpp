@@ -13,8 +13,8 @@ class Socket {
     Socket() noexcept = default;
     explicit Socket(int fd, sa_family_t family = AF_UNSPEC);
 
-    Socket(Socket&&) noexcept;
-    Socket& operator=(Socket&&) noexcept;
+    Socket(Socket&& /*other*/) noexcept;
+    Socket& operator=(Socket&& /*other*/) noexcept;
 
     Socket(const Socket&) = delete;
     Socket& operator=(const Socket&) = delete;

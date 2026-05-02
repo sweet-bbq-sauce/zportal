@@ -26,8 +26,8 @@ class Receiver {
     static Result<Receiver> create_receiver(IoUring& ring, TunDevice& tun, Socket& socket, std::uint16_t queue_length,
                                             std::uint32_t buffer_size) noexcept;
 
-    Receiver(Receiver&&) noexcept;
-    Receiver& operator=(Receiver&&) noexcept;
+    Receiver(Receiver&& /*other*/) noexcept;
+    Receiver& operator=(Receiver&& /*other*/) noexcept;
     Receiver(const Receiver&) = delete;
     Receiver& operator=(const Receiver&) = delete;
 
@@ -56,9 +56,9 @@ class Receiver {
     std::queue<InputBuffer> input_buffer_queue_;
     std::vector<std::int32_t> buffer_refcounts_;
 
-    enum class ParseState { PARSING_HEADER, PARSING_PAYLOAD } state_{ParseState::PARSING_HEADER};
+    enum class ParseState : std::uint8_t { PARSING_HEADER, PARSING_PAYLOAD } state_{ParseState::PARSING_HEADER};
 
-    FrameHeader header_{};
+    FrameHeader header_;
     std::size_t header_progress_{};
 
     struct OutputFrame {

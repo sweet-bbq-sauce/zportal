@@ -30,8 +30,8 @@ class TunDevice {
                                                std::uint32_t mtu) noexcept;
     TunDevice() noexcept = default;
 
-    TunDevice(TunDevice&&) noexcept;
-    TunDevice& operator=(TunDevice&&) noexcept;
+    TunDevice(TunDevice&& /*other*/) noexcept;
+    TunDevice& operator=(TunDevice&& /*other*/) noexcept;
 
     TunDevice(const TunDevice&) = delete;
     TunDevice& operator=(const TunDevice&) = delete;

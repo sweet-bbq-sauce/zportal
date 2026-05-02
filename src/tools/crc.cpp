@@ -14,13 +14,13 @@
 #include <zportal/tools/support_check.hpp>
 
 static constexpr auto crc32c_software = [](std::uint32_t& crc, std::span<const std::byte> data) -> void {
-    constexpr std::uint32_t poly = 0x82F63B78u; // reflected Castagnoli
+    constexpr std::uint32_t poly = 0x82F63B78U; // reflected Castagnoli
     // std::uint32_t crc = 0xFFFFFFFFu;
 
     for (const std::byte b : data) {
         crc ^= static_cast<std::uint8_t>(b);
         for (int i = 0; i < 8; ++i) {
-            const std::uint32_t mask = -(crc & 1u);
+            const std::uint32_t mask = -(crc & 1U);
             crc = (crc >> 1) ^ (poly & mask);
         }
     }
@@ -35,7 +35,7 @@ __attribute__((target("sse4.2"))) static inline void crc32c_hardware(std::uint32
     // std::uint32_t crc = 0xFFFFFFFFu;
 
     #if defined(__x86_64__)
-    while (size && (reinterpret_cast<std::uintptr_t>(ptr) & 7u)) {
+    while ((size != 0U) && ((reinterpret_cast<std::uintptr_t>(ptr) & 7U) != 0U)) {
         crc = _mm_crc32_u8(crc, *ptr++);
         --size;
     }
@@ -58,7 +58,7 @@ __attribute__((target("sse4.2"))) static inline void crc32c_hardware(std::uint32
         ptr += 4;
         size -= 4;
     }
-    while (size--) {
+    while ((size--) != 0U) {
         crc = _mm_crc32_u8(crc, *ptr++);
     }
 }
@@ -66,7 +66,7 @@ __attribute__((target("sse4.2"))) static inline void crc32c_hardware(std::uint32
 #endif
 
 std::uint32_t zportal::crc32c(std::span<const std::byte> data) noexcept {
-    std::uint32_t crc = 0xFFFFFFFFu;
+    std::uint32_t crc = 0xFFFFFFFFU;
 
 #if defined(__x86_64__) || defined(__i386__)
     support_check::sse4() ? crc32c_hardware(crc, data) : crc32c_software(crc, data);
@@ -74,11 +74,11 @@ std::uint32_t zportal::crc32c(std::span<const std::byte> data) noexcept {
     crc32c_software(crc, data);
 #endif
 
-    return crc ^ 0xFFFFFFFFu;
+    return crc ^ 0xFFFFFFFFU;
 }
 
 std::uint32_t zportal::crc32c(const std::vector<std::span<const std::byte>>& data) noexcept {
-    std::uint32_t crc = 0xFFFFFFFFu;
+    std::uint32_t crc = 0xFFFFFFFFU;
 
     for (const auto& segment : data) {
 #if defined(__x86_64__) || defined(__i386__)
@@ -88,14 +88,15 @@ std::uint32_t zportal::crc32c(const std::vector<std::span<const std::byte>>& dat
 #endif
     }
 
-    return crc ^ 0xFFFFFFFFu;
+    return crc ^ 0xFFFFFFFFU;
 }
 
 std::uint32_t zportal::crc32c(const std::vector<iovec>& data) noexcept {
     std::vector<std::span<const std::byte>> tmp;
     tmp.reserve(data.size());
-    for (const auto& vec : data)
+    for (const auto& vec : data) {
         tmp.emplace_back(reinterpret_cast<const std::byte*>(vec.iov_base), static_cast<std::size_t>(vec.iov_len));
+    }
 
     return zportal::crc32c(tmp);
 }

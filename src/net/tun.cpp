@@ -23,8 +23,9 @@ zportal::Result<zportal::TunDevice> zportal::TunDevice::create_tun_device(const 
                                                                           std::uint32_t mtu) noexcept {
     TunDevice tun;
     tun.fd_ = FileDescriptor(::open("/dev/net/tun", O_RDWR));
-    if (!tun.fd_)
+    if (!tun.fd_) {
         return fail({ErrorCode::TunOpenFailed, errno});
+    }
 
     ifreq ifr{};
     ifr.ifr_flags = IFF_TUN | IFF_NO_PI;
@@ -37,7 +38,7 @@ zportal::Result<zportal::TunDevice> zportal::TunDevice::create_tun_device(const 
     }
 
     tun.name_ = ifr.ifr_name;
-    tun.index_ = ::if_nametoindex(tun.name_.c_str());
+    tun.index_ = static_cast<int>(::if_nametoindex(tun.name_.c_str()));
     if (tun.index_ == 0) {
         const int err = errno;
         tun.close();
@@ -45,21 +46,25 @@ zportal::Result<zportal::TunDevice> zportal::TunDevice::create_tun_device(const 
     }
 
     tun.nl_ = Socket(::socket(AF_NETLINK, SOCK_RAW | SOCK_CLOEXEC, NETLINK_ROUTE));
-    if (!tun.nl_)
+    if (!tun.nl_) {
         return fail({ErrorCode::SocketCreateFailed, errno});
+    }
 
     sockaddr_nl local{};
     local.nl_family = AF_NETLINK;
-    if (::bind(tun.nl_.get(), reinterpret_cast<const sockaddr*>(&local), sizeof(local)) < 0)
+    if (::bind(tun.nl_.get(), reinterpret_cast<const sockaddr*>(&local), sizeof(local)) < 0) {
         return fail({ErrorCode::BindFailed, errno});
+    }
 
     auto result = tun.set_mtu_(mtu);
-    if (!result)
+    if (!result) {
         return fail(result.error());
+    }
 
     result = tun.set_cidr_(address);
-    if (!result)
+    if (!result) {
         return fail(result.error());
+    }
 
     return tun;
 }
@@ -69,8 +74,9 @@ zportal::TunDevice::TunDevice(TunDevice&& other) noexcept
       name_(std::exchange(other.name_, "")), nl_(std::move(other.nl_)) {}
 
 zportal::TunDevice& zportal::TunDevice::operator=(TunDevice&& other) noexcept {
-    if (this == &other)
+    if (this == &other) {
         return *this;
+    }
 
     close();
     fd_ = std::move(other.fd_);
@@ -100,12 +106,12 @@ zportal::Result<void> zportal::TunDevice::set_cidr_(const Cidr& cidr) noexcept {
 
     if (cidr.is_ip4()) {
         family = AF_INET;
-        const sockaddr_in* sa = reinterpret_cast<const sockaddr_in*>(addr.get());
+        const auto* sa = reinterpret_cast<const sockaddr_in*>(addr.get());
         ip = &sa->sin_addr;
         ip_length = sizeof(in_addr);
     } else {
         family = AF_INET6;
-        const sockaddr_in6* sa = reinterpret_cast<const sockaddr_in6*>(addr.get());
+        const auto* sa = reinterpret_cast<const sockaddr_in6*>(addr.get());
         ip = &sa->sin6_addr;
         ip_length = sizeof(in6_addr);
     }
@@ -121,16 +127,19 @@ zportal::Result<void> zportal::TunDevice::set_cidr_(const Cidr& cidr) noexcept {
     req.ifa.ifa_index = index_;
 
     auto result = nl_add_attr_(req.nlh, sizeof(req), IFA_LOCAL, ip, ip_length);
-    if (!result)
+    if (!result) {
         return fail(result.error());
+    }
     result = nl_add_attr_(req.nlh, sizeof(req), IFA_ADDRESS, ip, ip_length);
-    if (!result)
+    if (!result) {
         return fail(result.error());
+    }
 
     if (cidr.is_ip4()) {
         result = nl_add_attr_(req.nlh, sizeof(req), IFA_LABEL, name_.c_str(), name_.size() + 1);
-        if (!result)
+        if (!result) {
             return fail(result.error());
+        }
     }
 
     return nl_send_acked_(req.nlh);
@@ -150,15 +159,17 @@ zportal::Result<void> zportal::TunDevice::set_mtu_(std::uint32_t mtu) noexcept {
 
     req.ifi.ifi_family = AF_UNSPEC;
     req.ifi.ifi_index = index_;
-    req.ifi.ifi_change = 0xFFFFFFFFu;
+    req.ifi.ifi_change = 0xFFFFFFFFU;
 
     auto result = nl_add_attr_(req.nlh, sizeof(req), IFLA_MTU, &mtu, sizeof(mtu));
-    if (!result)
+    if (!result) {
         return fail(result.error());
+    }
 
     result = nl_send_acked_(req.nlh);
-    if (!result)
+    if (!result) {
         return fail(result.error());
+    }
 
     mtu_ = mtu;
 
@@ -239,8 +250,9 @@ zportal::Result<void> zportal::TunDevice::nl_add_attr_(nlmsghdr& nlh, std::size_
     const std::size_t len = RTA_LENGTH(alen);
     const std::size_t new_len = NLMSG_ALIGN(nlh.nlmsg_len) + RTA_ALIGN(len);
 
-    if (new_len > maxlen)
+    if (new_len > maxlen) {
         return fail({ErrorCode::InvalidArgument, 0, "netlink message too small for attribute"});
+    }
 
     auto* rta = reinterpret_cast<rtattr*>(reinterpret_cast<char*>(&nlh) + NLMSG_ALIGN(nlh.nlmsg_len));
 
@@ -264,36 +276,41 @@ zportal::Result<void> zportal::TunDevice::nl_send_raw_(const nlmsghdr& nlh) cons
     msg.msg_iov = &iov;
     msg.msg_iovlen = 1;
 
-    if (::sendmsg(nl_.get(), &msg, 0) < 0)
+    if (::sendmsg(nl_.get(), &msg, 0) < 0) {
         return fail({ErrorCode::SendFailed, errno});
+    }
 
     return {};
 }
 
 zportal::Result<void> zportal::TunDevice::nl_send_acked_(const nlmsghdr& nlh) const noexcept {
     const auto result = nl_send_raw_(nlh);
-    if (!result)
+    if (!result) {
         return fail(result.error());
+    }
 
     alignas(nlmsghdr) char rxbuf[8192];
     for (;;) {
         ssize_t n = ::recv(nl_.get(), rxbuf, sizeof(rxbuf), 0);
         if (n < 0) {
-            if (errno == EINTR)
+            if (errno == EINTR) {
                 continue;
+            }
             return fail({ErrorCode::RecvFailed, errno});
         }
 
-        for (nlmsghdr* nh = reinterpret_cast<nlmsghdr*>(rxbuf); NLMSG_OK(nh, static_cast<unsigned>(n));
+        for (auto* nh = reinterpret_cast<nlmsghdr*>(rxbuf); NLMSG_OK(nh, static_cast<unsigned>(n));
              nh = NLMSG_NEXT(nh, n)) {
 
-            if (nh->nlmsg_seq != nlh.nlmsg_seq)
+            if (nh->nlmsg_seq != nlh.nlmsg_seq) {
                 continue;
+            }
 
             if (nh->nlmsg_type == NLMSG_ERROR) {
                 auto* err = reinterpret_cast<nlmsgerr*>(NLMSG_DATA(nh));
-                if (err->error == 0)
+                if (err->error == 0) {
                     return {};
+                }
 
                 return fail({ErrorCode::NetlinkError, -err->error});
             }
@@ -316,43 +333,49 @@ zportal::Result<zportal::TunDeviceStats> zportal::TunDevice::get_stats() const n
     req.ifi.ifi_index = index_;
 
     const auto result = nl_send_raw_(req.nlh);
-    if (!result)
+    if (!result) {
         return fail(result.error());
+    }
 
     alignas(nlmsghdr) char rxbuf[8192];
     for (;;) {
         ssize_t n = ::recv(nl_.get(), rxbuf, sizeof(rxbuf), 0);
         if (n < 0) {
-            if (errno == EINTR)
+            if (errno == EINTR) {
                 continue;
+            }
 
             return fail({ErrorCode::RecvFailed, errno});
         }
 
-        for (nlmsghdr* nh = reinterpret_cast<nlmsghdr*>(rxbuf); NLMSG_OK(nh, static_cast<unsigned>(n));
+        for (auto* nh = reinterpret_cast<nlmsghdr*>(rxbuf); NLMSG_OK(nh, static_cast<unsigned>(n));
              nh = NLMSG_NEXT(nh, n)) {
 
-            if (nh->nlmsg_seq != req.nlh.nlmsg_seq)
+            if (nh->nlmsg_seq != req.nlh.nlmsg_seq) {
                 continue;
+            }
 
             if (nh->nlmsg_type == NLMSG_ERROR) {
                 auto* err = reinterpret_cast<nlmsgerr*>(NLMSG_DATA(nh));
-                if (err->error == 0)
+                if (err->error == 0) {
                     continue;
+                }
 
                 return fail({ErrorCode::NetlinkError, -err->error});
             }
 
-            if (nh->nlmsg_type != RTM_NEWLINK)
+            if (nh->nlmsg_type != RTM_NEWLINK) {
                 continue;
+            }
 
             auto* ifi = reinterpret_cast<ifinfomsg*>(NLMSG_DATA(nh));
-            if (ifi->ifi_index != index_)
+            if (ifi->ifi_index != index_) {
                 continue;
+            }
 
             TunDeviceStats out{};
 
-            int attr_len = nh->nlmsg_len - NLMSG_LENGTH(sizeof(*ifi));
+            int attr_len = static_cast<int>(nh->nlmsg_len - NLMSG_LENGTH(sizeof(*ifi)));
             for (rtattr* rta = IFLA_RTA(ifi); RTA_OK(rta, attr_len); rta = RTA_NEXT(rta, attr_len)) {
                 if (rta->rta_type == IFLA_STATS64 && RTA_PAYLOAD(rta) >= sizeof(rtnl_link_stats64)) {
                     auto* s = reinterpret_cast<rtnl_link_stats64*>(RTA_DATA(rta));

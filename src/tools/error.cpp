@@ -124,12 +124,14 @@ std::string zportal::Error::to_string() const {
 
         out << " Code: " << static_cast<std::uint32_t>(code_);
 
-        if (sys_errno_ > 0)
+        if (sys_errno_ > 0) {
             out << " Errno: " << sys_errno_;
+        }
     }
 
-    if (message_ && *message_)
+    if ((message_ != nullptr) && (*message_ != 0)) {
         out << " Message:" << message_;
+    }
 
 #if !defined(NDEBUG)
     out << " [" << where_.file_name() << " (" << where_.line() << ":" << where_.column() << ") in "

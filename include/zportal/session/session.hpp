@@ -17,8 +17,8 @@ class Session {
                                           std::uint16_t tx_queue_length, std::uint16_t rx_queue_length,
                                           std::uint32_t rx_buffer_size, const Config& cfg) noexcept;
 
-    Session(Session&&) noexcept;
-    Session& operator=(Session&&) noexcept;
+    Session(Session&& /*other*/) noexcept;
+    Session& operator=(Session&& /*other*/) noexcept;
     Session(const Session&) = delete;
     Session& operator=(const Session&) = delete;
 

@@ -19,7 +19,7 @@ inline void Operation::set_type(OperationType type) noexcept {
 }
 
 inline void Operation::parse(std::uint64_t serialized) noexcept {
-    type_ = static_cast<OperationType>(serialized & 0xFFu);
+    type_ = static_cast<OperationType>(serialized & 0xFFU);
 }
 
 inline std::uint64_t Operation::serialize() const noexcept {

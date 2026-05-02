@@ -8,11 +8,13 @@
 #include <zportal/tools/error.hpp>
 
 static const auto socket_recv = [](zportal::Socket& socket, std::span<std::uint8_t> data) -> zportal::Result<void> {
-    if (data.empty())
+    if (data.empty()) {
         return {};
+    }
 
-    if (!socket)
+    if (!socket) {
         return zportal::fail(zportal::ErrorCode::InvalidSocket);
+    }
 
     std::size_t processed{};
     while (processed < data.size()) {
@@ -20,7 +22,8 @@ static const auto socket_recv = [](zportal::Socket& socket, std::span<std::uint8
         if (n == 0) {
             socket.close();
             return zportal::fail(zportal::ErrorCode::PeerClosed);
-        } else if (n < 0) {
+        }
+        if (n < 0) {
             // const auto err = errno;
             // socket.close();
             return zportal::fail({zportal::ErrorCode::RecvFailed, errno});
@@ -34,11 +37,13 @@ static const auto socket_recv = [](zportal::Socket& socket, std::span<std::uint8
 
 static const auto socket_send = [](zportal::Socket& socket,
                                    std::span<const std::uint8_t> data) -> zportal::Result<void> {
-    if (data.empty())
+    if (data.empty()) {
         return {};
+    }
 
-    if (!socket)
+    if (!socket) {
         return zportal::fail(zportal::ErrorCode::InvalidSocket);
+    }
 
     std::size_t processed{};
     while (processed < data.size()) {
@@ -46,7 +51,8 @@ static const auto socket_send = [](zportal::Socket& socket,
         if (n == 0) {
             // socket.close();
             return zportal::fail(zportal::ErrorCode::SendReturnedZero);
-        } else if (n < 0) {
+        }
+        if (n < 0) {
             // socket.close();
             return zportal::fail({zportal::ErrorCode::SendFailed, errno});
         }
@@ -58,8 +64,9 @@ static const auto socket_send = [](zportal::Socket& socket,
 };
 
 zportal::Result<void> zportal::socks5_connect(Socket& socket, const Address& address) noexcept {
-    if (std::holds_alternative<HostPair>(address) && std::get<HostPair>(address).hostname.size() > 255)
+    if (std::holds_alternative<HostPair>(address) && std::get<HostPair>(address).hostname.size() > 255) {
         return fail(ErrorCode::SocksHostnameTooLong);
+    }
 
     // Auth method negotiation
     static const std::array<std::uint8_t, 3> method_request = {0x05, 0x01, 0x00}; // "no auth" only
@@ -67,17 +74,21 @@ zportal::Result<void> zportal::socks5_connect(Socket& socket, const Address& add
 
     Result<void> io_result;
     io_result = socket_send(socket, method_request);
-    if (!io_result)
+    if (!io_result) {
         return io_result;
+    }
 
     io_result = socket_recv(socket, method_response);
-    if (!io_result)
+    if (!io_result) {
         return io_result;
+    }
 
-    if (method_response[1] == 0xFF)
+    if (method_response[1] == 0xFF) {
         return fail(ErrorCode::SocksAuthMethodUnsupported);
-    if (method_response[1] != 0x00)
+    }
+    if (method_response[1] != 0x00) {
         return fail(ErrorCode::SocksAuthMethodUnsupported);
+    }
 
     // CONNECT command
     std::size_t connect_request_length{};
@@ -112,41 +123,48 @@ zportal::Result<void> zportal::socks5_connect(Socket& socket, const Address& add
             std::memcpy(connect_request.data() + 4 + 16, &sa_in6->sin6_port, 2);
 
             connect_request_length = 4 + 16 + 2;
-        } else
+        } else {
             return fail(ErrorCode::SocksUnsupportedTargetFamily);
+        }
     }
 
     io_result = socket_send(socket, {connect_request.data(), connect_request_length});
-    if (!io_result)
+    if (!io_result) {
         return io_result;
+    }
 
     std::array<std::uint8_t, 4> command_response;
     std::array<std::uint8_t, 1 + 255 + 2> hole_for_response_address;
     io_result = socket_recv(socket, command_response);
-    if (!io_result)
+    if (!io_result) {
         return io_result;
+    }
 
-    if (command_response[1] != 0x00)
+    if (command_response[1] != 0x00) {
         return fail(ErrorCode::SocksConnectFailed);
+    }
 
     std::size_t response_address_length{};
-    if (command_response[3] == 0x01)
+    if (command_response[3] == 0x01) {
         response_address_length = 4 + 2;
-    else if (command_response[3] == 0x04)
+    } else if (command_response[3] == 0x04) {
         response_address_length = 16 + 2;
-    else if (command_response[3] == 0x03) {
+    } else if (command_response[3] == 0x03) {
         std::uint8_t len;
         io_result = socket_recv(socket, {&len, sizeof(len)});
-        if (!io_result)
+        if (!io_result) {
             return io_result;
+        }
 
         response_address_length = len + 2;
-    } else
+    } else {
         return fail(ErrorCode::SocksUnsupportedTargetFamily);
+    }
 
     io_result = socket_recv(socket, {hole_for_response_address.data(), response_address_length});
-    if (!io_result)
+    if (!io_result) {
         return io_result;
+    }
 
     return {};
 };

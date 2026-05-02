@@ -22,14 +22,15 @@ inline Operation Cqe::operation() const noexcept {
 }
 
 inline std::optional<std::uint16_t> Cqe::bid() const noexcept {
-    if (flags_ & IORING_CQE_F_BUFFER)
+    if ((flags_ & IORING_CQE_F_BUFFER) != 0U) {
         return static_cast<std::uint16_t>(flags_ >> IORING_CQE_BUFFER_SHIFT);
+    }
 
     return std::nullopt;
 }
 
 inline bool Cqe::more() const noexcept {
-    return flags_ & IORING_CQE_F_MORE;
+    return (flags_ & IORING_CQE_F_MORE) != 0U;
 }
 
 inline bool Cqe::ok() const noexcept {

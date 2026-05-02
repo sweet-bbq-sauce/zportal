@@ -12,8 +12,9 @@ zportal::FileDescriptor::FileDescriptor(int fd) noexcept : fd_(fd) {}
 zportal::FileDescriptor::FileDescriptor(FileDescriptor&& other) noexcept : fd_(std::exchange(other.fd_, invalid_fd)) {}
 
 zportal::FileDescriptor& zportal::FileDescriptor::operator=(FileDescriptor&& other) noexcept {
-    if (&other == this)
+    if (&other == this) {
         return *this;
+    }
 
     close();
     fd_ = std::exchange(other.fd_, invalid_fd);
@@ -26,11 +27,14 @@ zportal::FileDescriptor::~FileDescriptor() noexcept {
 }
 
 void zportal::FileDescriptor::reset(int fd) noexcept {
-    if (fd == fd_)
+    if (fd == fd_) {
         return;
-    if (is_valid())
-        if (::close(fd_) != 0)
+    }
+    if (is_valid()) {
+        if (::close(fd_) != 0) {
             DEBUG_ERRNO(errno, "close");
+        }
+    }
     fd_ = fd;
 }
 

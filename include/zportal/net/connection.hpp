@@ -8,7 +8,7 @@
 
 namespace zportal {
 
-Result<Socket> connect_to(const Address& address, const std::vector<Address>& proxies = {}) noexcept;
+Result<Socket> connect_to(const Address& target, const std::vector<Address>& proxies = {}) noexcept;
 Result<Socket> create_listener(const Address& address) noexcept;
 Result<Socket> accept_from(const Socket& listener) noexcept;
 
