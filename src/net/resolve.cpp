@@ -7,7 +7,7 @@
 #include <zportal/net/resolve.hpp>
 #include <zportal/tools/error.hpp>
 
-zportal::Result<zportal::SockAddress> zportal::resolve(const Address& address) noexcept {
+zportal::Result<zportal::SockAddress> zportal::resolve(const Address& address) {
     if (std::holds_alternative<SockAddress>(address)) {
         return std::get<SockAddress>(address);
     }

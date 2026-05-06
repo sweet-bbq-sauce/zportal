@@ -5,6 +5,6 @@
 
 namespace zportal {
 
-Result<SockAddress> resolve(const Address& address) noexcept;
+Result<SockAddress> resolve(const Address& address);
 
 }

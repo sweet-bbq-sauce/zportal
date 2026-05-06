@@ -43,7 +43,7 @@ zportal::Result<std::span<std::byte>> zportal::BufferGroup::get_buffer(std::uint
         return fail(ErrorCode::InvalidSize);
     }
 
-    std::byte* ptr = data_.get();
+    std::byte* ptr = data_.data();
     const std::size_t offset = static_cast<std::size_t>(bid) * static_cast<std::size_t>(buffer_size_);
     return std::span<std::byte>{ptr + offset, static_cast<std::size_t>(size ? *size : buffer_size_)};
 }

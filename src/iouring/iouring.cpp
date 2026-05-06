@@ -125,9 +125,10 @@ zportal::Result<zportal::BufferGroup*> zportal::IoUring::create_buffer_group(std
     bg->buffer_count_ = length;
     bg->buffer_size_ = buf_size;
     bg->size_ = static_cast<std::size_t>(bg->buffer_count_) * static_cast<std::size_t>(bg->buffer_size_);
-    bg->data_ = std::unique_ptr<std::byte[]>(new (std::nothrow) std::byte[bg->size_]);
 
-    if (!bg->data_) {
+    try {
+        bg->data_ = std::vector<std::byte>(bg->size_);
+    } catch (const std::bad_alloc&) {
         return fail(ErrorCode::NotEnoughMemory);
     }
 

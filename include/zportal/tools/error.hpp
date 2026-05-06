@@ -8,9 +8,9 @@
 
 namespace zportal {
 
-enum class ErrorDomain { None, Protocol, Socket, Tun, IoUring, Resource, Internal, Socks, Resolve };
+enum class ErrorDomain : std::uint8_t { None, Protocol, Socket, Tun, IoUring, Resource, Internal, Socks, Resolve };
 
-enum class ErrorCode : std::uint32_t {
+enum class ErrorCode : std::uint16_t {
     None = 0x000,
 
     // Protocol errors

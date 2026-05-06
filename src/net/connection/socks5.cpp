@@ -7,7 +7,7 @@
 #include <zportal/net/connection.hpp>
 #include <zportal/tools/error.hpp>
 
-static const auto socket_recv = [](zportal::Socket& socket, std::span<std::uint8_t> data) -> zportal::Result<void> {
+static constexpr auto socket_recv = [](zportal::Socket& socket, std::span<std::uint8_t> data) -> zportal::Result<void> {
     if (data.empty()) {
         return {};
     }
@@ -35,8 +35,8 @@ static const auto socket_recv = [](zportal::Socket& socket, std::span<std::uint8
     return {};
 };
 
-static const auto socket_send = [](zportal::Socket& socket,
-                                   std::span<const std::uint8_t> data) -> zportal::Result<void> {
+static constexpr auto socket_send = [](zportal::Socket& socket,
+                                       std::span<const std::uint8_t> data) -> zportal::Result<void> {
     if (data.empty()) {
         return {};
     }
@@ -63,7 +63,7 @@ static const auto socket_send = [](zportal::Socket& socket,
     return {};
 };
 
-zportal::Result<void> zportal::socks5_connect(Socket& socket, const Address& address) noexcept {
+zportal::Result<void> zportal::socks5_connect(Socket& socket, const Address& address) {
     if (std::holds_alternative<HostPair>(address) && std::get<HostPair>(address).hostname.size() > 255) {
         return fail(ErrorCode::SocksHostnameTooLong);
     }

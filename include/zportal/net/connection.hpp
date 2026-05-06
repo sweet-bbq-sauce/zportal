@@ -12,6 +12,6 @@ Result<Socket> connect_to(const Address& target, const std::vector<Address>& pro
 Result<Socket> create_listener(const Address& address) noexcept;
 Result<Socket> accept_from(const Socket& listener) noexcept;
 
-Result<void> socks5_connect(Socket& socket, const Address& address) noexcept;
+Result<void> socks5_connect(Socket& socket, const Address& address);
 
 } // namespace zportal

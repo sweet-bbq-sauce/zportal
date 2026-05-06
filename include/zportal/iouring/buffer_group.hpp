@@ -1,8 +1,8 @@
 #pragma once
 
-#include <memory>
 #include <optional>
 #include <span>
+#include <vector>
 
 #include <cstddef>
 #include <cstdint>
@@ -42,7 +42,7 @@ class BufferGroup {
     io_uring_buf_ring* br_;
     int mask_;
 
-    std::unique_ptr<std::byte[]> data_;
+    std::vector<std::byte> data_;
     std::size_t size_;
 
     std::uint16_t bgid_, buffer_count_;
