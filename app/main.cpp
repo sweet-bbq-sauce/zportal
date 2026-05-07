@@ -63,7 +63,15 @@ int main(int argn, char* argv[]) {
             return EXIT_FAILURE;
         }
 
-        std::cout << "Accepted connection from " << zportal::to_string(*remote_address) << '\n';
+        std::cout << "Accepted connection";
+        if (*remote_address) {
+            try {
+                std::cout << " from " << zportal::to_string(*remote_address);
+            } catch (const std::exception& e) {
+                std::cout << " from <unprintable: " << e.what() << '>';
+            }
+        }
+        std::cout << '\n';
     } else if (cfg.connect_address) {
         auto peer = zportal::connect_to(*cfg.connect_address, cfg.proxies);
         if (!peer) {
