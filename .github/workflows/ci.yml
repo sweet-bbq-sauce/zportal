@@ -99,5 +99,4 @@ jobs:
       run: ctest -C ${{ matrix.build_type }} --output-on-failure
 
     - name: E2E tunnel smoke
-      if: matrix.name == 'release'
-      run: sudo timeout 30s tests/e2e/zportald_unix_netns.sh ${{ github.workspace }}/${{ matrix.build_dir }}/app/zportald
+      run: sudo timeout 60s tests/e2e/zportald_unix_netns.sh ${{ github.workspace }}/${{ matrix.build_dir }}/app/zportald
