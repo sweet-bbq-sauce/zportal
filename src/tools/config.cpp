@@ -16,7 +16,7 @@ constexpr auto help = [](zportal::Config& config, const std::string& program_nam
     std::cout << '\n';
     std::cout << "-n <ifname> \t\tTUN device name. For example 'tun0', 'tun%d'." << '\n';
     std::cout << "-m <MTU> \t\tDevice MTU. Range 68-" << std::numeric_limits<std::uint16_t>::max() << "." << '\n';
-    std::cout << "-a <inner address> \tInner IP4 cidr. For example 10.0.0.1/24." << '\n';
+    std::cout << "-a <inner address> \tInner IP cidr. For example 10.0.0.1/24." << '\n';
     std::cout << "-b <bind address> \tServer mode." << '\n';
     std::cout << "-c <connect address> \tClient mode." << '\n';
     std::cout << "-p <proxy> \t\tProxy address." << '\n';
@@ -27,7 +27,7 @@ constexpr auto help = [](zportal::Config& config, const std::string& program_nam
 
 constexpr auto version = []() {
     std::cout << PROJECT_NAME << " " << ZPORTAL_VERSION << '\n';
-    std::cout << "Copyright (C) 2025-2026 Wiktor Sołtys <wiesiekdx@gmail.com>" << '\n';
+    std::cout << "Copyright (C) 2025-2026 Wiktor Sołtys" << '\n';
     std::cout << "Licensed under MIT license" << '\n';
     std::cout << PROJECT_HOMEPAGE_URL << '\n';
 };
