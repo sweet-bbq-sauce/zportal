@@ -4,6 +4,8 @@
 [![E2E](https://github.com/sweet-bbq-sauce/zportal/actions/workflows/e2e.yml/badge.svg)](https://github.com/sweet-bbq-sauce/zportal/actions/workflows/e2e.yml)
 [![Release](https://github.com/sweet-bbq-sauce/zportal/actions/workflows/release.yml/badge.svg)](https://github.com/sweet-bbq-sauce/zportal/actions/workflows/release.yml)
 
+![image](doc/tunnel-monitor.png)
+
 ZPortal is a Linux-only C++23 network tunneling project. It creates a TUN
 interface, reads raw IP packets from it, frames them, and transports them over a
 TCP stream. On the other side it validates and reconstructs frames, then writes
