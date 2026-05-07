@@ -18,6 +18,7 @@ include(FetchContent)
 
 option(BUILD_TESTS "Build gtests" ON)
 option(WITH_ASAN_UBSAN "Build with ASan & UBSan" OFF)
+option(INSTALL_LIBZPORTAL "Install zportal library" OFF)
 
 add_subdirectory("${PROJECT_SOURCE_DIR}/src")
 add_subdirectory("${PROJECT_SOURCE_DIR}/app")
