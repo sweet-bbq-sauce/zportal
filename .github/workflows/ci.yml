@@ -75,7 +75,7 @@ jobs:
     - name: Toolchain
       run: |
         sudo apt-get update
-        sudo apt-get install -y gcc-14 g++-14 liburing-dev iproute2 iputils-ping python3
+        sudo apt-get install -y gcc-14 g++-14 liburing-dev
 
     - name: Show toolchain versions
       run: |
@@ -97,6 +97,3 @@ jobs:
     - name: Test
       working-directory: ${{ github.workspace }}/${{ matrix.build_dir }}
       run: ctest -C ${{ matrix.build_type }} --output-on-failure
-
-    - name: E2E tunnel smoke
-      run: sudo timeout 60s tests/e2e/zportald_unix_netns.sh ${{ github.workspace }}/${{ matrix.build_dir }}/app/zportald

@@ -1,6 +1,7 @@
 # **ZPortal** - IP tunnel over TCP
 
 [![CI](https://github.com/sweet-bbq-sauce/zportal/actions/workflows/ci.yml/badge.svg)](https://github.com/sweet-bbq-sauce/zportal/actions/workflows/ci.yml)
+[![E2E](https://github.com/sweet-bbq-sauce/zportal/actions/workflows/e2e.yml/badge.svg)](https://github.com/sweet-bbq-sauce/zportal/actions/workflows/e2e.yml)
 [![Release](https://github.com/sweet-bbq-sauce/zportal/actions/workflows/release.yml/badge.svg)](https://github.com/sweet-bbq-sauce/zportal/actions/workflows/release.yml)
 
 Educational project exploring Linux TUN interfaces and io_uring-based

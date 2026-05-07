@@ -1,0 +1,42 @@
+name: E2E
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  tunnel-smoke:
+    name: Tunnel smoke
+    runs-on: ubuntu-24.04
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Toolchain
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y gcc-14 g++-14 liburing-dev iproute2 iputils-ping python3
+
+    - name: Show toolchain versions
+      run: |
+        gcc-14 --version
+        g++-14 --version
+        python3 --version
+
+    - name: Configure CMake
+      run: >
+        cmake
+        -B ${{ github.workspace }}/build-e2e
+        -DCMAKE_BUILD_TYPE=Debug
+        -DCMAKE_C_COMPILER=gcc-14
+        -DCMAKE_CXX_COMPILER=g++-14
+        -DBUILD_TESTS=OFF
+        -DWITH_ASAN_UBSAN=ON
+
+    - name: Build
+      run: cmake --build ${{ github.workspace }}/build-e2e --config Debug
+
+    - name: E2E tunnel smoke
+      run: sudo timeout 90s tests/e2e/zportald_unix_netns.sh ${{ github.workspace }}/build-e2e/app/zportald
