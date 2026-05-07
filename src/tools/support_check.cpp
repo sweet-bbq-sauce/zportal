@@ -94,7 +94,6 @@ zportal::Result<bool> zportal::support_check::recv_multishot() noexcept {
 
 #if defined(__x86_64__) || defined(__i386__)
     #include <cpuid.h>
-    #include <nmmintrin.h>
 #endif
 
 bool zportal::support_check::sse4() noexcept {
@@ -110,9 +109,9 @@ bool zportal::support_check::sse4() noexcept {
     unsigned edx;
     if (__get_cpuid(1, &eax, &ebx, &ecx, &edx) == 0) {
         cache = false;
+    } else {
+        cache = (ecx & bit_SSE4_2) != 0;
     }
-
-    cache = (ecx & bit_SSE4_2) != 0;
 #else
     cache = false;
 #endif
